@@ -1,0 +1,25 @@
+{
+  "date": "2026-08-21",
+  "groups": [
+    {
+      "category": "Fruits people mistake for vegetables",
+      "words": ["TOMATOES", "CUCUMBERS", "EGGPLANTS", "AVOCADOS"],
+      "difficulty": 1
+    },
+    {
+      "category": "___ BALL",
+      "words": ["BASKET", "BASE", "FOOT", "DODGE"],
+      "difficulty": 2
+    },
+    {
+      "category": "British slang for money",
+      "words": ["QUID", "DOSH", "BREAD", "DOUGH"],
+      "difficulty": 3
+    },
+    {
+      "category": "Homophones of numbers",
+      "words": ["WON", "TOO", "ATE", "FOR"],
+      "difficulty": 4
+    }
+  ]
+}

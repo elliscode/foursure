@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Submit a Group — Fourplay</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Libre+Franklin:ital,wght@0,400;0,700;0,800;1,400&display=swap"
+  rel="stylesheet"
+/>
+<style>
+  :root {
+    --chosen-bg: #3a3a34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 32px 16px 64px;
+    font-family: "Libre Franklin", -apple-system, BlinkMacSystemFont, sans-serif;
+    color: #1a1a1a;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .panel {
+    width: 100%;
+    max-width: 480px;
+  }
+  a.back-link {
+    color: #0474ba;
+    text-decoration: none;
+    font-size: 0.9rem;
+  }
+  h1 {
+    font-size: 1.7rem;
+    margin: 12px 0 4px;
+  }
+  .tagline {
+    opacity: 0.75;
+    margin: 0 0 24px;
+    line-height: 1.5;
+  }
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .words-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+  input {
+    font-family: inherit;
+    font-size: 0.9rem;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    width: 100%;
+  }
+  button {
+    align-self: flex-start;
+    background-color: var(--chosen-bg);
+    color: #fff;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+  button:hover {
+    background-color: #52524a;
+  }
+  #submit-group-message {
+    font-size: 0.85rem;
+    opacity: 0.85;
+    min-height: 1.2em;
+  }
+  @media (max-width: 420px) {
+    .words-row {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+</style>
+</head>
+<body>
+  <div class="panel">
+    <a class="back-link" href="index.html">&larr; Back to today's puzzle</a>
+    <h1>Submit a group</h1>
+    <p class="tagline">
+      Propose four words and the category connecting them — every submission is reviewed before it can appear in a
+      puzzle.
+    </p>
+    <form id="submit-group-form">
+      <div class="words-row">
+        <input id="submit-word-1" type="text" placeholder="Word 1" maxlength="40" required />
+        <input id="submit-word-2" type="text" placeholder="Word 2" maxlength="40" required />
+        <input id="submit-word-3" type="text" placeholder="Word 3" maxlength="40" required />
+        <input id="submit-word-4" type="text" placeholder="Word 4" maxlength="40" required />
+      </div>
+      <input id="submit-category" type="text" placeholder="Category connecting them" maxlength="200" required />
+      <button type="submit">Submit group</button>
+      <p id="submit-group-message"></p>
+    </form>
+  </div>
+
+<script>
+const API_HOST = "https://api.fourplay.elliscode.com";
+
+const submitGroupForm = document.getElementById("submit-group-form");
+const submitGroupMessage = document.getElementById("submit-group-message");
+
+async function submitGroupCallback(event) {
+  event.preventDefault();
+  let words = [1, 2, 3, 4].map((n) => (document.getElementById(`submit-word-${n}`).value || "").trim());
+  let category = (document.getElementById("submit-category").value || "").trim();
+
+  if (words.some((w) => !w) || !category) {
+    submitGroupMessage.innerText = "All four words and a category are required.";
+    return;
+  }
+
+  try {
+    let response = await fetch(`${API_HOST}/submit-group`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ words, category }),
+    });
+    let body = await response.json();
+    if (response.ok) {
+      submitGroupMessage.innerText = "Thanks! Your group has been submitted for review.";
+      submitGroupForm.reset();
+    } else {
+      submitGroupMessage.innerText = body.message || "Something went wrong, please try again.";
+    }
+  } catch (e) {
+    submitGroupMessage.innerText = "Something went wrong, please try again.";
+  }
+}
+submitGroupForm.addEventListener("submit", submitGroupCallback);
+</script>
+</body>
+</html>

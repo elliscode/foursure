@@ -1,0 +1,580 @@
+/* Adapted from dumbphone-apps/s3/connections/css/stylesheet.css — same
+   tile/answer/guess-dot/shake structure, recolored to the 4 difficulty
+   hexes, but laid out with normal responsive CSS (grid + relative units)
+   instead of vw-locked dumbphone sizing. */
+
+:root {
+  --color-bg: #ffffff;
+  --color-text: #1a1a1a;
+  --tile-bg: #efefe6;
+  --tile-text: #1a1a1a;
+  --chosen-bg: #3a3a34;
+  --toast-bg: #3a3a34;
+  --difficulty-4: #0474ba;
+  --difficulty-3: #00a7e1;
+  --difficulty-2: #ffa630;
+  --difficulty-1: #f17720;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 24px 16px 48px;
+  font-family: "Libre Franklin", -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.panel {
+  width: 100%;
+  max-width: 560px;
+}
+
+h1 {
+  text-align: center;
+  font-size: 2rem;
+  margin: 0 0 4px;
+}
+
+.tagline {
+  text-align: center;
+  opacity: 0.7;
+  margin: 0 0 20px;
+}
+
+#comment {
+  position: fixed;
+  top: 16px;
+  left: 0;
+  width: 100%;
+  display: none;
+  justify-content: center;
+  z-index: 10;
+  pointer-events: none;
+}
+
+#comment-span {
+  font-size: 0.95rem;
+  background-color: var(--toast-bg);
+  color: #fff;
+  border-radius: 8px;
+  padding: 8px 16px;
+}
+
+.slow-fade {
+  visibility: hidden;
+  opacity: 0;
+  transition: visibility 0s 2s, opacity 2s linear;
+}
+
+#date-picker-row {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+/* The nav-selectable D-pad stop is this wrapper, not #date-picker itself —
+   see puzzle.js's wireDatePickerWrapper() for why (landing on the real
+   input during navigation would pop its native picker prematurely). */
+.input-wrap {
+  display: inline-block;
+  border-radius: 8px;
+}
+
+.input-wrap[nav-selected="true"] {
+  box-shadow: 0 0 0 3px rgba(58, 58, 52, 0.4);
+}
+
+#date-picker {
+  font-family: inherit;
+  font-size: 1rem;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+}
+
+.game-div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+#results {
+  display: none;
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+/* Set as the nav-selected item the moment the puzzle ends (see gameOver()
+   in puzzle.js) — same halo treatment as the other nav-selectable elements. */
+#results-content {
+  border-radius: 8px;
+}
+
+#results-content[nav-selected="true"] {
+  outline: 3px solid rgba(58, 58, 52, 0.4);
+  outline-offset: 4px;
+}
+
+#display-text {
+  font-size: 2.25rem;
+  font-weight: 800;
+  margin: 0 0 20px;
+}
+
+#date-text {
+  font-size: 1rem;
+  opacity: 0.7;
+  margin: 20px 0 0;
+}
+
+#result-blocks {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.row {
+  display: flex;
+  gap: 4px;
+}
+
+.result-cell {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+}
+
+#puzzle {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  width: 100%;
+}
+
+#answers {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.card {
+  /* aspect-ratio isn't available on the KaiOS 3 / Gecko 84 target (shipped
+     in Firefox 89) — the classic percentage-padding trick instead: a
+     padding-top percentage always resolves against the element's own
+     WIDTH regardless of axis, so padding-top: 100% forces the height to
+     match the width in any CSS engine back to ~2010. */
+  position: relative;
+}
+
+.card::before {
+  content: "";
+  display: block;
+  padding-top: 100%;
+}
+
+.card > div {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 8px;
+  background-color: var(--tile-bg);
+  color: var(--tile-text);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow-wrap: anywhere;
+  text-align: center;
+  padding: 6px;
+  font-weight: 700;
+  font-size: clamp(0.65rem, 3.2vw, 1rem);
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: background-color 0.1s ease;
+}
+
+.answer {
+  grid-column: 1 / -1;
+  /* Same height as a single tile. Container queries (cqw) aren't available
+     on Gecko 84 either (shipped in Firefox 110), and there's no old-CSS way
+     to size one element off a *different* element's width — puzzle.js's
+     syncAnswerRowHeight() measures a live .card's rendered height and sets
+     this custom property instead; the px fallback only matters for the
+     brief instant before that JS runs. */
+  height: var(--tile-height, 134px);
+  border-radius: 8px;
+}
+
+.answer > div {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  overflow-wrap: anywhere;
+  text-align: center;
+  padding: 10px;
+}
+
+/* White rather than the usual dark --chosen-bg halo — this sits on top of
+   whichever saturated difficulty color the group is, where a dark ring
+   wouldn't read clearly against the darker two of the four. */
+.answer > div[nav-selected="true"] {
+  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.8);
+}
+
+.answer > div > p {
+  margin: 0;
+}
+
+.answer > div > p:first-child {
+  font-size: 1.05rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+
+.answer > div > p:last-child {
+  font-size: 0.85rem;
+}
+
+#guesses {
+  display: flex;
+  align-items: center;
+  margin: 16px 0;
+  user-select: none;
+}
+
+#guesses > span {
+  margin-right: 8px;
+  font-size: 0.95rem;
+}
+
+#guess-spot {
+  display: flex;
+  align-items: center;
+}
+
+.guess {
+  width: 12px;
+  height: 12px;
+  border-radius: 6px;
+  background-color: #999;
+  display: inline-block;
+  margin: 2px;
+}
+
+#game-controls {
+  display: flex;
+  gap: 8px;
+}
+
+#game-controls > button {
+  background-color: #fff;
+  border: 1px solid var(--chosen-bg);
+  padding: 10px 18px;
+  border-radius: 20px;
+  color: #000;
+  font-size: 0.9rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+#game-controls > button:hover {
+  background-color: var(--tile-bg);
+}
+
+#game-controls > button:active {
+  background-color: #c7c7bd;
+}
+
+.chosen {
+  background-color: var(--chosen-bg) !important;
+  color: #fff !important;
+}
+
+.card[nav-selected="true"] > div {
+  box-shadow: 0 0 0 3px rgba(58, 58, 52, 0.5);
+}
+
+/* Every nav-selectable element manages its own focus halo above (.card,
+   .input-wrap, and #submit-group-link a below) via the nav-selected
+   attribute — suppress the browser's native focus outline so that halo is
+   the only indicator shown, not both layered on top of each other. */
+[nav-selectable="true"] {
+  outline: none;
+}
+
+#submit-group-link a[nav-selected="true"] {
+  outline: 3px solid rgba(58, 58, 52, 0.4);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Text color per swatch comes from a --difficulty-N-text custom property,
+   computed once at boot by puzzle.js's computeContrastColors() (a WCAG
+   relative-luminance calculation) and written onto :root — relative color
+   syntax (oklch(from ...)) would do this in pure CSS, but that's a Firefox
+   128 feature and isn't available on the KaiOS 3 / Gecko 84 target. The
+   #fff fallback only matters for the brief instant before that JS runs. */
+.difficulty-1 {
+  background-color: var(--difficulty-1);
+  color: var(--difficulty-1-text, #fff);
+}
+
+.difficulty-2 {
+  background-color: var(--difficulty-2);
+  color: var(--difficulty-2-text, #fff);
+}
+
+.difficulty-3 {
+  background-color: var(--difficulty-3);
+  color: var(--difficulty-3-text, #fff);
+}
+
+.difficulty-4 {
+  background-color: var(--difficulty-4);
+  color: var(--difficulty-4-text, #fff);
+}
+
+@keyframes horizontal-shaking {
+  0% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(5px);
+  }
+  50% {
+    transform: translateX(0px);
+  }
+  75% {
+    transform: translateX(-5px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+.shake {
+  animation-name: horizontal-shaking;
+  animation-duration: 0.125s;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+#submit-group-link {
+  margin-top: 32px;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+#submit-group-link a {
+  color: var(--chosen-bg);
+}
+
+/* --- KaiOS softkey bar ------------------------------------------------
+   Ported from kaios-calorie-counter/frontend-v3/css/softkey.css: fixed
+   bottom bar labeling the phone's physical SoftLeft/center/SoftRight keys.
+   Hidden above 240px width — every screen with room for the on-screen
+   Shuffle/Deselect/Submit buttons has no hardware softkeys to label. */
+@media (max-width: 240px) {
+  body {
+    padding-bottom: 46px;
+    margin-bottom: 30px;
+  }
+}
+
+#softkey {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 30px;
+  background: #fff;
+  border-top: 1px solid #ccc;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  z-index: 20;
+}
+
+/* Physical KaiOS softkeys, not usually mouse-clickable — but these labels
+   are clickable anyway (see puzzle.js's wireSoftkeyClicks()) so the KaiOS
+   interaction model can be tested with a mouse on a laptop, without
+   simulating real SoftLeft/SoftRight key events. */
+#sk-left,
+#sk-center,
+#sk-right {
+  cursor: pointer;
+}
+
+#sk-left,
+#sk-right {
+  padding: 0 6px;
+  color: var(--chosen-bg);
+  min-width: 60px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#sk-right {
+  text-align: right;
+}
+
+#sk-center {
+  flex: 1;
+  text-align: center;
+  text-transform: uppercase;
+  color: #111;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (min-width: 241px) {
+  #softkey {
+    display: none;
+  }
+}
+
+/* The reverse pairing: on-screen Shuffle/Deselect All/Submit are redundant
+   with the softkey bar at KaiOS width (and Shuffle has no softkey
+   equivalent at all — not needed there, per the user), and would otherwise
+   end up scrolled to just behind the fixed softkey bar. */
+@media (max-width: 240px) {
+  #game-controls {
+    display: none !important;
+  }
+}
+
+/* Tighter spacing for a real ~240px-wide KaiOS screen — the desktop-tuned
+   8px gap/16px side padding eats too much of a screen this small. */
+@media (max-width: 240px) {
+  body {
+    padding: 4px;
+  }
+
+  #puzzle,
+  #answers {
+    gap: 2px;
+  }
+}
+
+/* Compact header: title + date picker share one row, tagline centered on
+   its own line below both. #header is otherwise just a plain wrapper — at
+   normal widths this is a no-op, since h1/.tagline/#date-picker-row already
+   center themselves individually via their own rules above. order (rather
+   than reordering the HTML) is what puts #date-picker-row on the first
+   line here, since .tagline actually sits between the two in source order. */
+@media (max-width: 240px) {
+  #header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  #header h1 {
+    order: 1;
+    /* Not flex-grow: 1 — that forces h1 to claim the entire row width
+       (it did, up to all 232px available at 240px viewport width), leaving
+       nothing for #date-picker-row to sit beside it, so it wrapped to its
+       own line. Sized to its own content instead; space-between above is
+       what pushes the two apart to the row's opposite edges. */
+    flex: 0 1 auto;
+    text-align: left;
+    font-size: 1.3rem;
+    margin: 0;
+  }
+
+  #header #date-picker-row {
+    order: 2;
+    flex: 0 0 auto;
+    margin: 0;
+  }
+
+  /* The native date input's own intrinsic width (font-size 1rem, 6px/10px
+     padding) plus the title still don't both fit in 232px available at
+     240px viewport width, even with the title sized to its own content
+     above — shrink the input itself too, not just the title. */
+  #header #date-picker {
+    font-size: 0.8rem;
+    padding: 4px 6px;
+  }
+
+  #header .tagline {
+    order: 3;
+    flex-basis: 100%;
+    margin: 4px 0;
+  }
+}
+
+/* Smaller recap grid + tighter gaps to fit a ~240px-wide screen. */
+@media (max-width: 240px) {
+  #result-blocks {
+    gap: 2px;
+  }
+
+  .row {
+    gap: 2px;
+  }
+
+  .result-cell {
+    width: 20px;
+    height: 20px;
+  }
+
+  .answer > div > p:first-child {
+    font-size: 0.8rem;
+  }
+
+  .answer > div > p:last-child {
+    font-size: 0.65rem;
+  }
+}
+
+/* Submit-a-group is a distraction from today's puzzle on a screen this
+   small — only show it once the puzzle's actually done (win or lose).
+   document.body.classList "game-ended" is kept in sync with the gameEnded
+   variable by puzzle.js's clearThePuzzle()/gameOver(). */
+@media (max-width: 240px) {
+  #submit-group-link {
+    display: none;
+  }
+
+  body.game-ended #submit-group-link {
+    display: block;
+  }
+}
+
+/* Chances above the tile grid, not below — lets the guess count stay
+   visible without the puzzle itself being in view on a screen this short.
+   .game-div is already display:flex; flex-direction:column, so reordering
+   is just an order swap, no HTML/JS changes needed. */
+@media (max-width: 240px) {
+  #guesses {
+    order: 1;
+    margin: 4px 0;
+  }
+
+  #puzzle {
+    order: 2;
+  }
+}

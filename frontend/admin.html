@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Fourplay Admin</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 16px;
+    background: #F5F7FA;
+    color: #111;
+  }
+  h1 { font-size: 18px; color: #0474BA; margin-bottom: 16px; }
+  h2 { font-size: 15px; color: #0474BA; margin: 0; }
+  .login { max-width: 360px; margin: 60px auto; }
+  .login label { display: block; margin: 12px 0; font-size: 14px; }
+  input, textarea {
+    font-size: 14px;
+    padding: 8px;
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    margin-top: 4px;
+  }
+  button {
+    font-size: 14px;
+    padding: 8px 14px;
+    margin-top: 8px;
+    cursor: pointer;
+    border: none;
+    border-radius: 4px;
+    background: #0474BA;
+    color: #fff;
+  }
+  button:hover { background: #035c92; }
+  #error { color: #c0392b; font-size: 13px; min-height: 18px; }
+
+  .tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  .tabs button { background: #fff; color: #0474BA; border: 1px solid #0474BA; margin-top: 0; }
+  .tabs button.active { background: #0474BA; color: #fff; }
+
+  .card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .card-words { font-size: 16px; font-weight: 700; }
+  .card-category { font-size: 14px; color: #333; }
+  .card-meta { font-size: 12px; color: #777; }
+  .status-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 10px;
+    text-transform: uppercase;
+  }
+  .status-pending { background: #FFA630; color: #fff; }
+  .status-approved { background: #1a8a4a; color: #fff; }
+  .status-rejected { background: #c0392b; color: #fff; }
+
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .approve { background: #1a8a4a; }
+  .approve:hover { background: #22a75c; }
+  .reject { background: #c0392b; }
+  .reject:hover { background: #d9483a; }
+  .edit { background: #666; }
+  .edit:hover { background: #808080; }
+
+  .edit-form { display: flex; flex-direction: column; gap: 8px; }
+  .edit-words-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+
+  #empty-state { color: #666; font-size: 14px; }
+</style>
+</head>
+<body>
+  <h1>Fourplay — Group Submission Review</h1>
+  <p id="error"></p>
+
+  <div class="login" id="generate-code" style="display:none;">
+    <form onsubmit="generateCode(event);">
+      <p>Enter your admin phone number to receive a log-in code.</p>
+      <label for="phone-number">Phone Number: <input type="tel" name="phone-number" id="phone-number" placeholder="XXXXXXXXXX"></label>
+      <button>Get Code</button>
+    </form>
+  </div>
+  <div class="login" id="submit-code" style="display:none;">
+    <form onsubmit="submitCode(event);">
+      <p>Enter the one-time code sent by text.</p>
+      <label for="one-time-code">One-time Code: <input type="tel" name="one-time-code" id="one-time-code" placeholder="XXXXXX" autocomplete="off"></label>
+      <button>Log In</button>
+    </form>
+  </div>
+
+  <div id="app" style="display:none;">
+    <div class="tabs">
+      <button id="tab-pending" onclick="switchTab('pending');">Pending</button>
+      <button id="tab-approved" onclick="switchTab('approved');">Approved</button>
+      <button id="tab-rejected" onclick="switchTab('rejected');">Rejected</button>
+      <button id="tab-all" onclick="switchTab('all');">All</button>
+    </div>
+    <div id="cards"></div>
+    <p id="empty-state" style="display:none;">Nothing here.</p>
+  </div>
+
+<script>
+const BASE_URL = 'https://api.fourplay.elliscode.com/admin';
+const CSRF_STORAGE_KEY = 'fourplay-admin-csrf-token';
+
+const generateCodeDiv = document.getElementById('generate-code');
+const submitCodeDiv = document.getElementById('submit-code');
+const appDiv = document.getElementById('app');
+const cardsDiv = document.getElementById('cards');
+const emptyStateEl = document.getElementById('empty-state');
+const errorEl = document.getElementById('error');
+const phoneNumberInput = document.getElementById('phone-number');
+const oneTimeCodeInput = document.getElementById('one-time-code');
+
+let csrfToken = undefined;
+let currentTab = 'pending';
+
+function loadCsrfToken() {
+  const stored = localStorage.getItem(CSRF_STORAGE_KEY);
+  if (/^[a-zA-Z0-9]{32}$/.test(stored)) csrfToken = stored;
+}
+
+function displayError(message) {
+  errorEl.innerText = message || '';
+}
+
+function hideAllScreens() {
+  generateCodeDiv.style.display = 'none';
+  submitCodeDiv.style.display = 'none';
+  appDiv.style.display = 'none';
+}
+
+async function changeUiBasedOnLoginState() {
+  try {
+    const response = await fetch(`${BASE_URL}/logged-in-check`, {
+      method: 'POST',
+      credentials: 'include',
+      body: JSON.stringify({ csrf: csrfToken })
+    });
+    if (response.status >= 200 && response.status < 300) {
+      hideAllScreens();
+      appDiv.style.display = 'block';
+      switchTab(currentTab);
+      return;
+    }
+  } catch {
+    // Network-level failure (offline, CORS, etc) — fall through to login.
+  }
+  hideAllScreens();
+  generateCodeDiv.style.display = 'block';
+}
+
+async function generateCode(event) {
+  event.preventDefault();
+  try {
+    const response = await fetch(`${BASE_URL}/otp`, {
+      method: 'POST',
+      body: JSON.stringify({ phone: phoneNumberInput.value })
+    });
+    if (response.status >= 200 && response.status < 300) {
+      displayError('');
+      hideAllScreens();
+      submitCodeDiv.style.display = 'block';
+      return;
+    }
+    const data = await response.json();
+    displayError(data.message);
+  } catch {
+    displayError('Error requesting a code, please check the phone number.');
+  }
+}
+
+async function submitCode(event) {
+  event.preventDefault();
+  try {
+    const response = await fetch(`${BASE_URL}/login`, {
+      method: 'POST',
+      credentials: 'include',
+      body: JSON.stringify({ phone: phoneNumberInput.value, otp: oneTimeCodeInput.value })
+    });
+    if (response.status >= 200 && response.status < 300) {
+      csrfToken = response.headers.get('x-csrf-token');
+      localStorage.setItem(CSRF_STORAGE_KEY, csrfToken);
+      displayError('');
+      hideAllScreens();
+      appDiv.style.display = 'block';
+      switchTab('pending');
+      return;
+    }
+    const data = await response.json();
+    displayError(data.message);
+  } catch {
+    displayError('Error logging in, please try again.');
+  }
+}
+
+function switchTab(status) {
+  currentTab = status;
+  ['pending', 'approved', 'rejected', 'all'].forEach(function (s) {
+    document.getElementById(`tab-${s}`).classList.toggle('active', s === status);
+  });
+  loadGroups();
+}
+
+async function loadGroups() {
+  cardsDiv.innerHTML = '';
+  try {
+    const response = await fetch(`${BASE_URL}/list-groups`, {
+      method: 'POST',
+      credentials: 'include',
+      body: JSON.stringify({ csrf: csrfToken, status: currentTab })
+    });
+    if (response.status >= 200 && response.status < 300) {
+      const data = await response.json();
+      const groups = (data.groups || []).slice().sort(function (a, b) { return (b.submittedAt || 0) - (a.submittedAt || 0); });
+      emptyStateEl.style.display = groups.length ? 'none' : 'block';
+      groups.forEach(function (group) { buildCard(group); });
+      return;
+    }
+    if (response.status === 403) {
+      changeUiBasedOnLoginState();
+      return;
+    }
+    const data = await response.json();
+    displayError(data.message);
+  } catch {
+    displayError('Error loading groups, please try again.');
+  }
+}
+
+function statusBadge(group) {
+  if (group.approved === true) return { text: 'Approved', cls: 'status-approved' };
+  if (group.approved === false) return { text: 'Rejected', cls: 'status-rejected' };
+  return { text: 'Pending', cls: 'status-pending' };
+}
+
+function buildCard(group) {
+  const card = document.createElement('div');
+  card.className = 'card';
+
+  const badge = statusBadge(group);
+  const meta = document.createElement('div');
+  meta.className = 'card-meta';
+  meta.innerHTML = `<span class="status-badge ${badge.cls}">${badge.text}</span>`;
+  if (group.sourceGroupId) {
+    meta.innerHTML += ` &middot; edited from #${group.sourceGroupId.slice(0, 8)}`;
+  }
+  card.appendChild(meta);
+
+  const words = document.createElement('div');
+  words.className = 'card-words';
+  words.innerText = group.words.join(', ');
+  card.appendChild(words);
+
+  const category = document.createElement('div');
+  category.className = 'card-category';
+  category.innerText = group.category;
+  card.appendChild(category);
+
+  const actions = document.createElement('div');
+  actions.className = 'actions';
+
+  const approveBtn = document.createElement('button');
+  approveBtn.className = 'approve';
+  approveBtn.innerText = 'Approve';
+  approveBtn.addEventListener('click', function () { decideGroup(group.key2, true); });
+  actions.appendChild(approveBtn);
+
+  const rejectBtn = document.createElement('button');
+  rejectBtn.className = 'reject';
+  rejectBtn.innerText = 'Reject';
+  rejectBtn.addEventListener('click', function () { decideGroup(group.key2, false); });
+  actions.appendChild(rejectBtn);
+
+  const editBtn = document.createElement('button');
+  editBtn.className = 'edit';
+  editBtn.innerText = 'Edit';
+  editBtn.addEventListener('click', function () { toggleEditForm(card, group); });
+  actions.appendChild(editBtn);
+
+  card.appendChild(actions);
+  cardsDiv.appendChild(card);
+}
+
+async function decideGroup(id, approved) {
+  try {
+    const response = await fetch(`${BASE_URL}/decide-group`, {
+      method: 'POST',
+      credentials: 'include',
+      body: JSON.stringify({ csrf: csrfToken, id: id, approved: approved })
+    });
+    if (response.status >= 200 && response.status < 300) {
+      displayError('');
+      loadGroups();
+      return;
+    }
+    const data = await response.json();
+    displayError(data.message);
+  } catch {
+    displayError('Error saving decision, please try again.');
+  }
+}
+
+// Toggles an inline edit form onto the card, pre-filled with the group's
+// current words/category. Saving calls /admin/edit-group, which rejects
+// this record and creates a brand-new approved one with the edits — so
+// after a successful save the list is simply reloaded.
+function toggleEditForm(card, group) {
+  const existing = card.querySelector('.edit-form');
+  if (existing) {
+    existing.remove();
+    return;
+  }
+
+  const form = document.createElement('div');
+  form.className = 'edit-form';
+
+  const wordsRow = document.createElement('div');
+  wordsRow.className = 'edit-words-row';
+  const wordInputs = [0, 1, 2, 3].map(function (i) {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.maxLength = 40;
+    input.value = group.words[i] || '';
+    wordsRow.appendChild(input);
+    return input;
+  });
+  form.appendChild(wordsRow);
+
+  const categoryInput = document.createElement('input');
+  categoryInput.type = 'text';
+  categoryInput.maxLength = 200;
+  categoryInput.value = group.category || '';
+  form.appendChild(categoryInput);
+
+  const saveBtn = document.createElement('button');
+  saveBtn.innerText = 'Save Edit';
+  saveBtn.addEventListener('click', function () {
+    const words = wordInputs.map(function (i) { return i.value.trim(); });
+    const category = categoryInput.value.trim();
+    saveEdit(group.key2, words, category);
+  });
+  form.appendChild(saveBtn);
+
+  card.appendChild(form);
+}
+
+async function saveEdit(id, words, category) {
+  try {
+    const response = await fetch(`${BASE_URL}/edit-group`, {
+      method: 'POST',
+      credentials: 'include',
+      body: JSON.stringify({ csrf: csrfToken, id: id, words: words, category: category })
+    });
+    if (response.status >= 200 && response.status < 300) {
+      displayError('');
+      loadGroups();
+      return;
+    }
+    const data = await response.json();
+    displayError(data.message);
+  } catch {
+    displayError('Error saving edit, please try again.');
+  }
+}
+
+loadCsrfToken();
+changeUiBasedOnLoginState();
+</script>
+</body>
+</html>

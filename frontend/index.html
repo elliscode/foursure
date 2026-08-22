@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fourplay</title>
+    <link rel="stylesheet" href="css/stylesheet.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Libre+Franklin:ital,wght@0,400;0,700;0,800;1,400&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="results" class="panel">
+      <div id="results-content" nav-selectable="true">
+        <p id="display-text">TEXT</p>
+        <div id="result-blocks"></div>
+        <p id="date-text">0000-00-00</p>
+      </div>
+    </div>
+
+    <div id="comment"><span id="comment-span"></span></div>
+
+    <div class="panel" id="content">
+      <div id="header">
+        <h1>Fourplay</h1>
+        <div id="date-picker-row">
+          <div class="input-wrap" id="wrap-date-picker" nav-selectable="true">
+            <input onchange="setDate(event)" id="date-picker" type="date" />
+          </div>
+        </div>
+        <p class="tagline">Find the four groups of four.</p>
+      </div>
+
+      <div class="game-div">
+        <div id="puzzle"><div id="answers"></div></div>
+
+        <div id="guesses"><span>Chances:</span><div id="guess-spot"></div></div>
+
+        <div id="game-controls">
+          <button onclick="shuffleTiles(event);">Shuffle</button>
+          <button onclick="deselectAll(event);">Deselect All</button>
+          <button onclick="checkGuessCallback(event);">Submit</button>
+        </div>
+      </div>
+
+      <p id="submit-group-link"><a href="submit-group.html" nav-selectable="true">Have four words that belong together? Submit a group &rarr;</a></p>
+    </div>
+
+    <!-- KaiOS softkey bar — hidden above 240px width, see stylesheet.css -->
+    <div id="softkey">
+      <label id="sk-left"></label>
+      <label id="sk-center"></label>
+      <label id="sk-right"></label>
+    </div>
+
+    <script src="js/puzzle.js"></script>
+  </body>
+</html>

@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# backend/release.sh output
+backend/*.zip
+
+# s3/release.sh copies these in from frontend/ on every run — not source of
+# truth here, same convention as kaios-calorie-counter's s3/.gitignore rules
+s3/index.html
+s3/admin.html
+s3/css/
+s3/js/
+
+.DS_Store
