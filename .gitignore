@@ -13,3 +13,5 @@ s3/css/
 s3/js/
 
 .DS_Store
+
+*.zip
