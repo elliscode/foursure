@@ -68,6 +68,9 @@ let previousDatePickerValue = undefined;
 // Set once at boot by fetchFirstPuzzleDate() — null means "no minimum",
 // the safe default when puzzles/manifest.json is missing/blank/unreachable.
 let firstPuzzleDate = null;
+// Set by openSettingsModal()/closeSettingsModal() — see selectables() below
+// for what this actually gates (the D-pad focus trap while the modal's up).
+let settingsModalOpen = false;
 
 function textSort(x, y) {
   return x.localeCompare(y);
@@ -174,10 +177,12 @@ async function persistGameState() {
   }
 }
 
-// Testing helper — run clearGameData() from the devtools console to wipe
-// all locally-saved game history and reload with a clean slate. Closes the
-// cached connection first: indexedDB.deleteDatabase() on a database with an
-// open connection just hangs waiting on a "blocked" event otherwise.
+// Wipes all locally-saved game history and reloads with a clean slate —
+// wired to the Settings modal's "Delete All Data" confirm button (see
+// wireSettingsModal() below), and still runnable directly from the devtools
+// console the same way it always was. Closes the cached connection first:
+// indexedDB.deleteDatabase() on a database with an open connection just
+// hangs waiting on a "blocked" event otherwise.
 async function clearGameData() {
   if (dbPromise) {
     let db = await dbPromise;
@@ -521,6 +526,17 @@ function checkGuess(chosenValues) {
         .filter((x) => chosenValues.includes(x.getAttribute("answer-text")))
         .forEach((x) => x.remove());
       drawAnswer(group, colorClass);
+      // The just-solved tiles are gone, and if one of them held focus,
+      // it's now lost — the next arrow key would otherwise fall through to
+      // moveFocus()'s "nothing focused" branch and jump all the way back
+      // to the date picker (selectables()[0]) instead of staying in the
+      // grid. Land on the first remaining tile instead, if there is one —
+      // if not, the puzzle's done and gameOver() (via
+      // succeedPuzzleIfAppropriate() below) sets focus on its own.
+      let nextCard = document.querySelector(".card");
+      if (nextCard) {
+        setFocus(nextCard);
+      }
       succeedPuzzleIfAppropriate();
       return;
     }
@@ -687,8 +703,15 @@ function isVisible(el) {
 // class name to whatever element it creates — it's not something this file
 // controls, so it can't carry the attribute instead. Same fix used in
 // kaios-gps-location-sharer's own getAllElements().
+//
+// While the settings modal is open, this scopes down to just its own
+// subtree instead of the whole document — the entire D-pad focus trap for
+// that modal, no per-element hide/show elsewhere needed (mirrors how
+// kaios-gps-location-sharer scopes its own equivalent query to whichever
+// panel is currently [active="true"]).
 function selectables() {
-  return Array.from(document.querySelectorAll('[nav-selectable="true"], .nav-selectable-ad')).filter(isVisible);
+  let scope = settingsModalOpen ? document.getElementById("settings-modal-backdrop") : document;
+  return Array.from(scope.querySelectorAll('[nav-selectable="true"], .nav-selectable-ad')).filter(isVisible);
 }
 
 function focused() {
@@ -896,10 +919,12 @@ function wireAnswersClick() {
 // — since a few elements have one single obvious center action and nothing
 // meaningful for the other two keys: the date wrapper ("Change"), the
 // submit-group link ("Open"), #results-content/#answers ("Share", only when
-// its SHARE_*_ENABLED flag is on), and the ad banner ("Select", if one's
-// currently loaded — see displayAd()). Anything else (a tile, a disabled
-// share area, or nothing yet) falls back to the normal Select/Guess/
-// Deselect All trio, blanked out once the game's ended.
+// its SHARE_*_ENABLED flag is on), the ad banner ("Select", if one's
+// currently loaded — see displayAd()), and the settings modal (left doubles
+// as "Close"/"Cancel" — see activateSoftLeft() below — while it's open).
+// Anything else (a tile, a disabled share area, or nothing yet) falls back
+// to the normal Select/Guess/Deselect All trio, blanked out once the game's
+// ended.
 function updateSoftkeys() {
   let current = focused();
   let id = current ? current.id : null;
@@ -909,10 +934,16 @@ function updateSoftkeys() {
   let right = document.getElementById("sk-right");
   let onShareableResults = id === "results-content" && SHARE_RESULTS_ENABLED;
   let onShareableAnswers = id === "answers" && SHARE_ANSWERS_ENABLED;
+  let onSettingsConfirm = settingsModalOpen && settingsModalConfirm.style.display !== "none";
+  let onSettingsMain = settingsModalOpen && !onSettingsConfirm;
 
   if (id === "wrap-date-picker") {
     left.textContent = "";
     center.textContent = "Change";
+    right.textContent = "";
+  } else if (id === "settings-anchor") {
+    left.textContent = "";
+    center.textContent = "Open";
     right.textContent = "";
   } else if (id === "submit-group-anchor") {
     left.textContent = "";
@@ -924,6 +955,14 @@ function updateSoftkeys() {
     right.textContent = "";
   } else if (isAd) {
     left.textContent = "";
+    center.textContent = "Select";
+    right.textContent = "";
+  } else if (onSettingsConfirm) {
+    left.textContent = "Cancel";
+    center.textContent = "Select";
+    right.textContent = "";
+  } else if (onSettingsMain) {
+    left.textContent = "Close";
     center.textContent = "Select";
     right.textContent = "";
   } else {
@@ -948,8 +987,17 @@ function wireDatePickerWrapper() {
 // on-screen softkey <label> click listeners (wireSoftkeyClicks) share one
 // implementation — the labels exist mainly so this can be tested with a
 // mouse on a laptop without simulating real SoftLeft/SoftRight key events.
+// Doubles as the settings modal's "back" action (nested: cancel the confirm
+// view first if it's showing, only close the whole modal otherwise) while
+// it's open — same states updateSoftkeys() checks to label this key.
 function activateSoftLeft() {
-  deselectAll();
+  if (settingsModalOpen && settingsModalConfirm.style.display !== "none") {
+    hideClearDataConfirm();
+  } else if (settingsModalOpen) {
+    closeSettingsModal();
+  } else {
+    deselectAll();
+  }
 }
 
 function activateSoftCenter() {
@@ -993,6 +1041,59 @@ function handleKeydown(event) {
     event.preventDefault();
     activateSoftRight();
   }
+}
+
+// --- Settings modal --------------------------------------------------------
+const settingsModalBackdrop = document.getElementById("settings-modal-backdrop");
+const settingsModalMain = document.getElementById("settings-modal-main");
+const settingsModalConfirm = document.getElementById("settings-modal-confirm");
+
+function openSettingsModal() {
+  hideClearDataConfirm();
+  settingsModalBackdrop.classList.add("open");
+  settingsModalOpen = true;
+  setFocus(selectables()[0]);
+}
+
+function closeSettingsModal() {
+  settingsModalBackdrop.classList.remove("open");
+  settingsModalOpen = false;
+  setFocus(document.getElementById("settings-anchor"));
+}
+
+// Swaps in the "are you sure" view in place of the normal settings list —
+// not a second modal, just a second view inside the same one, same idea as
+// gameOver() swapping #game-controls out for #results. Focus defaults to
+// Cancel, not the destructive button, same as everywhere else in this file
+// a confirm step exists.
+function showClearDataConfirm() {
+  settingsModalMain.style.display = "none";
+  settingsModalConfirm.style.display = "flex";
+  setFocus(document.getElementById("settings-confirm-cancel"));
+}
+
+function hideClearDataConfirm() {
+  settingsModalMain.style.display = "flex";
+  settingsModalConfirm.style.display = "none";
+}
+
+function wireSettingsModal() {
+  document.getElementById("settings-anchor").addEventListener("click", openSettingsModal);
+  document.getElementById("settings-close").addEventListener("click", closeSettingsModal);
+  document.getElementById("settings-clear-data").addEventListener("click", showClearDataConfirm);
+  document.getElementById("settings-confirm-cancel").addEventListener("click", hideClearDataConfirm);
+  // clearGameData() (see the IndexedDB persistence section above) already
+  // does everything needed here, including a full page reload — nothing
+  // else has to run after it.
+  document.getElementById("settings-confirm-delete").addEventListener("click", clearGameData);
+  // Closes on a click anywhere on the backdrop itself, but not one that
+  // bubbled up from #settings-modal (the box) — the same "only the empty
+  // area counts" behavior most modal overlays use.
+  settingsModalBackdrop.addEventListener("click", (event) => {
+    if (event.target === settingsModalBackdrop) {
+      closeSettingsModal();
+    }
+  });
 }
 
 // --- KaiOS ad banner -----------------------------------------------------
@@ -1045,6 +1146,7 @@ computeContrastColors();
 wireDatePickerWrapper();
 wireResultsContentClick();
 wireAnswersClick();
+wireSettingsModal();
 wireSoftkeyClicks();
 document.addEventListener("keydown", handleKeydown);
 window.addEventListener("resize", syncAnswerRowHeight);

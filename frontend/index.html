@@ -53,6 +53,7 @@
       </div>
 
       <p id="submit-group-link"><a href="submit-group.html" id="submit-group-anchor" nav-selectable="true">Have four words that belong together? Submit a group &rarr;</a></p>
+      <p id="settings-link"><button type="button" id="settings-anchor" nav-selectable="true">Settings</button></p>
     </div>
 
     <!-- KaiOS ad banner (KaiAds SDK) — deliberately last, below everything
@@ -64,6 +65,27 @@
       <label id="sk-left"></label>
       <label id="sk-center"></label>
       <label id="sk-right"></label>
+    </div>
+
+    <!-- Settings modal — opened via #settings-anchor above. Not nested
+         inside .panel#content so it's unaffected by anything that toggles
+         that panel. See puzzle.js's openSettingsModal()/selectables(). -->
+    <div id="settings-modal-backdrop">
+      <div id="settings-modal">
+        <div id="settings-modal-main">
+          <h2>Settings</h2>
+          <!-- Hard-coded — bump alongside manifest.webmanifest's
+               b2g_features.version when releasing. -->
+          <p>Version <span id="app-version">1.0.0</span></p>
+          <button type="button" nav-selectable="true" id="settings-clear-data">Clear All Data</button>
+          <button type="button" nav-selectable="true" id="settings-close">Close</button>
+        </div>
+        <div id="settings-modal-confirm">
+          <p>Are you sure you want to delete all data? This cannot be undone.</p>
+          <button type="button" nav-selectable="true" id="settings-confirm-cancel">Cancel</button>
+          <button type="button" nav-selectable="true" id="settings-confirm-delete">Delete All Data</button>
+        </div>
+      </div>
     </div>
 
     <script src="js/kaiads.v5.min.js"></script>

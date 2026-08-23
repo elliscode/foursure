@@ -115,6 +115,10 @@ h1 {
    in puzzle.js) — same halo treatment as the other nav-selectable elements. */
 #results-content {
   border-radius: 8px;
+  height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 /* .share-enabled is added by wireResultsContentClick()/wireAnswersClick()
@@ -363,7 +367,8 @@ h1 {
   outline: none;
 }
 
-#submit-group-link a[nav-selected="true"] {
+#submit-group-link a[nav-selected="true"],
+#settings-anchor[nav-selected="true"] {
   outline: 3px solid rgba(58, 58, 52, 0.4);
   outline-offset: 2px;
   border-radius: 4px;
@@ -426,8 +431,115 @@ h1 {
   font-size: 0.9rem;
 }
 
-#submit-group-link a {
+#settings-link {
+  margin-top: 8px;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+#submit-group-link a,
+#settings-anchor {
   color: var(--chosen-bg);
+}
+
+/* #settings-anchor is a <button>, not an <a> like #submit-group-link — it
+   doesn't navigate anywhere, it opens #settings-modal-backdrop (see
+   puzzle.js's openSettingsModal()) — so it needs its native button chrome
+   stripped to read as the same plain text link. */
+#settings-anchor {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Settings modal (see puzzle.js's openSettingsModal()/selectables()) — a
+   fixed-position backdrop, hidden by default and toggled to flex by JS.
+   z-index above both #comment (10) and #softkey (20), the only other
+   position:fixed elements in this file, so it covers everything including
+   the softkey bar. */
+#settings-modal-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 30;
+  padding: 16px;
+}
+
+#settings-modal-backdrop.open {
+  display: flex;
+}
+
+/* width:90% rather than a fixed px value — same percentage-based approach
+   as everything else in this file, comfortably fits down to a real 240px
+   KaiOS screen with no extra breakpoint needed (unlike #ad-container's
+   fixed-240px case above). */
+#settings-modal {
+  background-color: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  width: 90%;
+  max-width: 320px;
+  text-align: center;
+}
+
+#settings-modal h2 {
+  margin: 0 0 12px;
+  font-size: 1.2rem;
+}
+
+#settings-modal p {
+  margin: 0 0 16px;
+  font-size: 0.9rem;
+}
+
+#settings-modal-main,
+#settings-modal-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* JS keeps exactly one of these two views visible at a time (see
+   showClearDataConfirm()/hideClearDataConfirm()) — hidden here just sets
+   the initial state. */
+#settings-modal-confirm {
+  display: none;
+}
+
+#settings-modal button {
+  background-color: #fff;
+  border: 1px solid var(--chosen-bg);
+  padding: 10px 18px;
+  border-radius: 20px;
+  color: #000;
+  font-size: 0.9rem;
+  font-family: inherit;
+  cursor: pointer;
+  user-select: none;
+}
+
+#settings-modal button:hover {
+  background-color: var(--tile-bg);
+}
+
+#settings-modal button:active {
+  background-color: #c7c7bd;
+}
+
+#settings-modal button[nav-selected="true"] {
+  box-shadow: 0 0 0 3px rgba(58, 58, 52, 0.5);
+}
+
+#settings-confirm-delete {
+  border-color: var(--difficulty-4);
+  color: var(--difficulty-4);
 }
 
 /* KaiOS ad banner (KaiAds SDK, see puzzle.js's displayAd()) — a persistent
@@ -642,16 +754,18 @@ h1 {
   }
 }
 
-/* Submit-a-group is a distraction from today's puzzle on a screen this
-   small — only show it once the puzzle's actually done (win or lose).
-   document.body.classList "game-ended" is kept in sync with the gameEnded
-   variable by puzzle.js's clearThePuzzle()/gameOver(). */
+/* Submit-a-group and Settings are both distractions from today's puzzle on
+   a screen this small — only show them once the puzzle's actually done
+   (win or lose). document.body.classList "game-ended" is kept in sync with
+   the gameEnded variable by puzzle.js's clearThePuzzle()/gameOver(). */
 @media (max-width: 240px) {
-  #submit-group-link {
+  #submit-group-link,
+  #settings-link {
     display: none;
   }
 
-  body.game-ended #submit-group-link {
+  body.game-ended #submit-group-link,
+  body.game-ended #settings-link {
     display: block;
   }
 }
