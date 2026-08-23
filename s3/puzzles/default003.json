@@ -1,0 +1,26 @@
+{
+  "id": 0,
+  "date": "",
+  "groups": [
+    {
+      "category": "Common pets",
+      "words": ["DOG", "CAT", "FISH", "BIRD"],
+      "difficulty": 1
+    },
+    {
+      "category": "Things you wear on your feet",
+      "words": ["SHOES", "SOCKS", "BOOTS", "SANDALS"],
+      "difficulty": 2
+    },
+    {
+      "category": "Meals of the day",
+      "words": ["BREAKFAST", "LUNCH", "DINNER", "BRUNCH"],
+      "difficulty": 3
+    },
+    {
+      "category": "Primary colors",
+      "words": ["RED", "BLUE", "YELLOW", "GREEN"],
+      "difficulty": 4
+    }
+  ]
+}

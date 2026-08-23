@@ -19,6 +19,14 @@ STATUS_FILTERS = {
     "approved": ("#approved = :true", {"#approved": "approved"}, {":true": True}),
     "rejected": ("#approved = :false", {"#approved": "approved"}, {":false": False}),
     "all": (None, {}, {}),
+    # Approved and not yet locked into a constructed puzzle — what
+    # admin.html's "Build Puzzle" tab offers as addable. Same filter
+    # fourplay/puzzle.py's old group-sampling generate_puzzle() used.
+    "approved-unused": (
+        "#approved = :true AND (attribute_not_exists(#used) OR #used = :false)",
+        {"#approved": "approved", "#used": "used_in_puzzle"},
+        {":true": True, ":false": False},
+    ),
 }
 
 
@@ -53,7 +61,9 @@ def _get_group(group_id):
 def list_groups_route(event, admin_phone, body):
     status = body.get("status") or "pending"
     if status not in STATUS_FILTERS:
-        return format_response(event=event, http_code=400, body="status must be one of pending/approved/rejected/all")
+        return format_response(
+            event=event, http_code=400, body="status must be one of pending/approved/rejected/all/approved-unused"
+        )
 
     filter_expression, expr_names, expr_values = STATUS_FILTERS[status]
     groups = _query_groups(filter_expression, expr_names, expr_values)

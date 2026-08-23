@@ -59,8 +59,8 @@
     flex-direction: column;
     gap: 10px;
   }
-  .card-words { font-size: 16px; font-weight: 700; }
-  .card-category { font-size: 14px; color: #333; }
+  .card-words { font-size: 16px; font-weight: 700; text-transform: uppercase; }
+  .card-category { font-size: 14px; color: #333; text-transform: uppercase; }
   .card-meta { font-size: 12px; color: #777; }
   .status-badge {
     display: inline-block;
@@ -85,7 +85,40 @@
   .edit-form { display: flex; flex-direction: column; gap: 8px; }
   .edit-words-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 
-  #empty-state { color: #666; font-size: 14px; }
+  #empty-state, .empty-state { color: #666; font-size: 14px; }
+
+  #build-slots { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 8px; }
+  .build-slot {
+    background: #fff;
+    border-radius: 10px;
+    padding: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+    min-height: 100px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .build-slot.empty {
+    align-items: center;
+    justify-content: center;
+    color: #999;
+    font-size: 13px;
+    border: 2px dashed #ddd;
+    box-shadow: none;
+    background: transparent;
+  }
+  .build-slot select { margin-top: 0; }
+  .build-slot .remove { background: #c0392b; align-self: flex-start; }
+  .build-slot .remove:hover { background: #d9483a; }
+  #build-status { font-size: 13px; color: #666; min-height: 18px; }
+  #submit-puzzle-btn:disabled { background: #ccc; cursor: not-allowed; }
+  .add-btn { background: #1a8a4a; }
+  .add-btn:hover { background: #22a75c; }
+  .add-btn:disabled { background: #ccc; cursor: not-allowed; }
+  .delete-btn { background: #c0392b; }
+  .delete-btn:hover { background: #d9483a; }
+  .queue-difficulty-row { display: flex; flex-wrap: wrap; gap: 6px; font-size: 13px; color: #333; }
+  .queue-difficulty-chip { background: #f0f0f0; border-radius: 6px; padding: 3px 8px; }
 </style>
 </head>
 <body>
@@ -113,9 +146,25 @@
       <button id="tab-approved" onclick="switchTab('approved');">Approved</button>
       <button id="tab-rejected" onclick="switchTab('rejected');">Rejected</button>
       <button id="tab-all" onclick="switchTab('all');">All</button>
+      <button id="tab-build" onclick="switchTab('build');">Build Puzzle</button>
     </div>
     <div id="cards"></div>
     <p id="empty-state" style="display:none;">Nothing here.</p>
+
+    <div id="build-puzzle" style="display:none;">
+      <h2>Puzzle being built</h2>
+      <div id="build-slots"></div>
+      <p id="build-status"></p>
+      <button id="submit-puzzle-btn" onclick="submitPuzzle();" disabled>Submit Puzzle</button>
+
+      <h2 style="margin-top:24px;">Available approved groups</h2>
+      <div id="available-groups"></div>
+      <p id="available-empty-state" class="empty-state" style="display:none;">No approved, unused groups available.</p>
+
+      <h2 style="margin-top:24px;">Puzzle queue (not yet published)</h2>
+      <div id="puzzle-queue"></div>
+      <p id="queue-empty-state" class="empty-state" style="display:none;">No puzzles queued yet.</p>
+    </div>
   </div>
 
 <script>
@@ -131,8 +180,27 @@ const errorEl = document.getElementById('error');
 const phoneNumberInput = document.getElementById('phone-number');
 const oneTimeCodeInput = document.getElementById('one-time-code');
 
+const buildPuzzleDiv = document.getElementById('build-puzzle');
+const buildSlotsDiv = document.getElementById('build-slots');
+const buildStatusEl = document.getElementById('build-status');
+const submitPuzzleBtn = document.getElementById('submit-puzzle-btn');
+const availableGroupsDiv = document.getElementById('available-groups');
+const availableEmptyStateEl = document.getElementById('available-empty-state');
+const puzzleQueueDiv = document.getElementById('puzzle-queue');
+const queueEmptyStateEl = document.getElementById('queue-empty-state');
+
+const GROUP_TABS = ['pending', 'approved', 'rejected', 'all'];
+const ALL_TABS = GROUP_TABS.concat(['build']);
+
 let csrfToken = undefined;
 let currentTab = 'pending';
+// The puzzle being assembled in the "Build Puzzle" tab — up to 4
+// {key2, category, words, difficulty} entries, difficulty null until the
+// admin picks one. Purely client-side until Submit Puzzle actually calls
+// /admin/create-puzzle — nothing is persisted per group added. Kept across
+// tab switches (not reset in switchTab) so flipping to another tab and back
+// doesn't lose in-progress work.
+let buildingGroups = [];
 
 function loadCsrfToken() {
   const stored = localStorage.getItem(CSRF_STORAGE_KEY);
@@ -215,10 +283,19 @@ async function submitCode(event) {
 
 function switchTab(status) {
   currentTab = status;
-  ['pending', 'approved', 'rejected', 'all'].forEach(function (s) {
+  ALL_TABS.forEach(function (s) {
     document.getElementById(`tab-${s}`).classList.toggle('active', s === status);
   });
-  loadGroups();
+  if (status === 'build') {
+    cardsDiv.style.display = 'none';
+    emptyStateEl.style.display = 'none';
+    buildPuzzleDiv.style.display = 'block';
+    loadBuildPuzzleTab();
+  } else {
+    buildPuzzleDiv.style.display = 'none';
+    cardsDiv.style.display = 'block';
+    loadGroups();
+  }
 }
 
 async function loadGroups() {
@@ -380,6 +457,262 @@ async function saveEdit(id, words, category) {
     displayError(data.message);
   } catch {
     displayError('Error saving edit, please try again.');
+  }
+}
+
+// --- Build Puzzle tab --------------------------------------------------
+// Loads both lists this tab needs in parallel: approved groups still free
+// to add, and the current not-yet-published puzzle queue. Re-renders the
+// in-progress build slots too, since removeFromBuildingPuzzle()/a
+// newly-freed group after a delete can change what's addable.
+async function loadBuildPuzzleTab() {
+  renderBuildSlots();
+  await Promise.all([loadAvailableGroups(), loadPuzzleQueue()]);
+}
+
+async function loadAvailableGroups() {
+  availableGroupsDiv.innerHTML = '';
+  try {
+    const response = await fetch(`${BASE_URL}/list-groups`, {
+      method: 'POST',
+      credentials: 'include',
+      body: JSON.stringify({ csrf: csrfToken, status: 'approved-unused' })
+    });
+    if (response.status >= 200 && response.status < 300) {
+      const data = await response.json();
+      const groups = (data.groups || []).slice().sort(function (a, b) { return (b.submittedAt || 0) - (a.submittedAt || 0); });
+      availableEmptyStateEl.style.display = groups.length ? 'none' : 'block';
+      groups.forEach(function (group) { buildAvailableGroupCard(group); });
+      return;
+    }
+    if (response.status === 403) {
+      changeUiBasedOnLoginState();
+      return;
+    }
+    const data = await response.json();
+    displayError(data.message);
+  } catch {
+    displayError('Error loading available groups, please try again.');
+  }
+}
+
+function buildAvailableGroupCard(group) {
+  const card = document.createElement('div');
+  card.className = 'card';
+
+  const words = document.createElement('div');
+  words.className = 'card-words';
+  words.innerText = group.words.join(', ');
+  card.appendChild(words);
+
+  const category = document.createElement('div');
+  category.className = 'card-category';
+  category.innerText = group.category;
+  card.appendChild(category);
+
+  const actions = document.createElement('div');
+  actions.className = 'actions';
+  const addBtn = document.createElement('button');
+  addBtn.className = 'add-btn';
+  const alreadyAdded = buildingGroups.some(function (g) { return g.key2 === group.key2; });
+  const full = buildingGroups.length >= 4;
+  addBtn.innerText = alreadyAdded ? 'Added' : 'Add';
+  addBtn.disabled = alreadyAdded || full;
+  addBtn.addEventListener('click', function () { addToBuildingPuzzle(group); });
+  actions.appendChild(addBtn);
+  card.appendChild(actions);
+
+  availableGroupsDiv.appendChild(card);
+}
+
+function addToBuildingPuzzle(group) {
+  if (buildingGroups.length >= 4 || buildingGroups.some(function (g) { return g.key2 === group.key2; })) {
+    return;
+  }
+  buildingGroups.push({ key2: group.key2, category: group.category, words: group.words, difficulty: null });
+  renderBuildSlots();
+  loadAvailableGroups();
+}
+
+function removeFromBuildingPuzzle(groupId) {
+  buildingGroups = buildingGroups.filter(function (g) { return g.key2 !== groupId; });
+  renderBuildSlots();
+  loadAvailableGroups();
+}
+
+// The 4-slot grid: filled slots show the group + a difficulty <select>,
+// empty ones are just a placeholder. Submit Puzzle only enables once all 4
+// are filled and the 4 difficulties form a complete 1-4 permutation — the
+// same thing create_puzzle_route validates server-side, checked here too so
+// the button can't be clicked into an error in the first place.
+function renderBuildSlots() {
+  buildSlotsDiv.innerHTML = '';
+  for (let i = 0; i < 4; i++) {
+    const entry = buildingGroups[i];
+    const slot = document.createElement('div');
+    if (!entry) {
+      slot.className = 'build-slot empty';
+      slot.innerText = 'Empty slot';
+      buildSlotsDiv.appendChild(slot);
+      continue;
+    }
+
+    slot.className = 'build-slot';
+    const words = document.createElement('div');
+    words.className = 'card-words';
+    words.innerText = entry.words.join(', ');
+    slot.appendChild(words);
+
+    const category = document.createElement('div');
+    category.className = 'card-category';
+    category.innerText = entry.category;
+    slot.appendChild(category);
+
+    const select = document.createElement('select');
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.innerText = 'Difficulty';
+    select.appendChild(placeholder);
+    [1, 2, 3, 4].forEach(function (d) {
+      const option = document.createElement('option');
+      option.value = String(d);
+      option.innerText = String(d);
+      if (entry.difficulty === d) option.selected = true;
+      select.appendChild(option);
+    });
+    select.addEventListener('change', function () {
+      entry.difficulty = select.value ? parseInt(select.value, 10) : null;
+      updateSubmitButtonState();
+    });
+    slot.appendChild(select);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'remove';
+    removeBtn.innerText = 'Remove';
+    removeBtn.addEventListener('click', function () { removeFromBuildingPuzzle(entry.key2); });
+    slot.appendChild(removeBtn);
+
+    buildSlotsDiv.appendChild(slot);
+  }
+  updateSubmitButtonState();
+}
+
+function isBuildingPuzzleValid() {
+  if (buildingGroups.length !== 4) return false;
+  const difficulties = buildingGroups.map(function (g) { return g.difficulty; });
+  return new Set(difficulties).size === 4 && difficulties.every(function (d) { return [1, 2, 3, 4].includes(d); });
+}
+
+function updateSubmitButtonState() {
+  const valid = isBuildingPuzzleValid();
+  submitPuzzleBtn.disabled = !valid;
+  if (buildingGroups.length < 4) {
+    buildStatusEl.innerText = `${buildingGroups.length}/4 groups added.`;
+  } else if (!valid) {
+    buildStatusEl.innerText = 'Each of 1, 2, 3, and 4 must be assigned to exactly one group.';
+  } else {
+    buildStatusEl.innerText = 'Ready to submit.';
+  }
+}
+
+async function submitPuzzle() {
+  if (!isBuildingPuzzleValid()) {
+    return;
+  }
+  try {
+    const response = await fetch(`${BASE_URL}/create-puzzle`, {
+      method: 'POST',
+      credentials: 'include',
+      body: JSON.stringify({
+        csrf: csrfToken,
+        groups: buildingGroups.map(function (g) { return { groupId: g.key2, difficulty: g.difficulty }; })
+      })
+    });
+    if (response.status >= 200 && response.status < 300) {
+      displayError('');
+      buildingGroups = [];
+      renderBuildSlots();
+      loadAvailableGroups();
+      loadPuzzleQueue();
+      return;
+    }
+    const data = await response.json();
+    displayError(data.message);
+  } catch {
+    displayError('Error building puzzle, please try again.');
+  }
+}
+
+async function loadPuzzleQueue() {
+  puzzleQueueDiv.innerHTML = '';
+  try {
+    const response = await fetch(`${BASE_URL}/list-puzzles`, {
+      method: 'POST',
+      credentials: 'include',
+      body: JSON.stringify({ csrf: csrfToken, status: 'unused' })
+    });
+    if (response.status >= 200 && response.status < 300) {
+      const data = await response.json();
+      const puzzles = data.puzzles || [];
+      queueEmptyStateEl.style.display = puzzles.length ? 'none' : 'block';
+      puzzles.forEach(function (puzzleItem) { buildQueueCard(puzzleItem); });
+      return;
+    }
+    if (response.status === 403) {
+      changeUiBasedOnLoginState();
+      return;
+    }
+    const data = await response.json();
+    displayError(data.message);
+  } catch {
+    displayError('Error loading the puzzle queue, please try again.');
+  }
+}
+
+function buildQueueCard(puzzleItem) {
+  const card = document.createElement('div');
+  card.className = 'card';
+
+  const groups = (puzzleItem.groups || []).slice().sort(function (a, b) { return a.difficulty - b.difficulty; });
+  const row = document.createElement('div');
+  row.className = 'queue-difficulty-row';
+  groups.forEach(function (g) {
+    const chip = document.createElement('span');
+    chip.className = 'queue-difficulty-chip';
+    chip.innerText = `${g.difficulty}: ${g.category} (${g.words.join(', ')})`;
+    row.appendChild(chip);
+  });
+  card.appendChild(row);
+
+  const actions = document.createElement('div');
+  actions.className = 'actions';
+  const deleteBtn = document.createElement('button');
+  deleteBtn.className = 'delete-btn';
+  deleteBtn.innerText = 'Delete';
+  deleteBtn.addEventListener('click', function () { deletePuzzle(puzzleItem.key2); });
+  actions.appendChild(deleteBtn);
+  card.appendChild(actions);
+
+  puzzleQueueDiv.appendChild(card);
+}
+
+async function deletePuzzle(id) {
+  try {
+    const response = await fetch(`${BASE_URL}/delete-puzzle`, {
+      method: 'POST',
+      credentials: 'include',
+      body: JSON.stringify({ csrf: csrfToken, id: id })
+    });
+    if (response.status >= 200 && response.status < 300) {
+      displayError('');
+      loadPuzzleQueue();
+      loadAvailableGroups();
+      return;
+    }
+    const data = await response.json();
+    displayError(data.message);
+  } catch {
+    displayError('Error deleting puzzle, please try again.');
   }
 }
 

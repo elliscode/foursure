@@ -12,6 +12,38 @@ const TEXT = ["Perfect!", "Great!", "Solid!", "Phew!", "Next Time!"];
 // matching backend/lambda/fourplay/puzzle.py's difficulty assignment and
 // css/stylesheet.css's .difficulty-1..4 color classes.
 const DIFFICULTY_CLASSES = ["difficulty-1", "difficulty-2", "difficulty-3", "difficulty-4"];
+// Same order/mapping as DIFFICULTY_CLASSES, for the emoji recap grid in
+// buildShareText() below — matches the --difficulty-1..4 colors in
+// stylesheet.css (green -> yellow -> orange -> red, easiest to hardest).
+const DIFFICULTY_EMOJI = {
+  "difficulty-1": "\u{1F7E9}", // green square
+  "difficulty-2": "\u{1F7E8}", // yellow square
+  "difficulty-3": "\u{1F7E7}", // orange square
+  "difficulty-4": "\u{1F7E5}", // red square
+};
+
+// Placeholder — same domain convention as admin.html's BASE_URL and
+// submit-group.html's API_HOST. This isn't just the share link anymore: it's
+// also the real host every puzzle-data fetch is hard-coded against (see
+// getThePuzzle()/fetchFirstPuzzleDate() below) — Fourplay ships both as this
+// website *and* as a packaged KaiOS app that serves its own code from
+// http://fourplay.localhost, which never has a puzzles/ directory of its
+// own (a packaged app can't be re-uploaded daily for tomorrow's puzzle), so
+// a relative path would 404 there. Always fetching from SITE_URL means both
+// origins read the same live data regardless of which one served the page.
+const SITE_URL = "https://fourplay.elliscode.com/";
+const API_HOST = "https://api.fourplay.elliscode.com";
+
+// --- Feature flags -----------------------------------------------------
+// Toggle the SMS-share affordance on/off independently per area. Both areas
+// stay navigable/focusable either way (results-content is still where
+// gameOver() lands focus; #answers is still nav-selectable once it has
+// content) — these only control whether Enter/click/tap on them actually
+// shares, whether the softkey center label says "Share", whether the
+// visible "Share" button renders, and the pointer-cursor hover cue. See
+// wireResultsContentClick()/wireAnswersClick()/ensureAnswersShareHint().
+let SHARE_RESULTS_ENABLED = true;
+let SHARE_ANSWERS_ENABLED = false;
 
 const puzzleEl = document.getElementById("puzzle");
 const answers = document.getElementById("answers");
@@ -33,7 +65,9 @@ let attempts = [];
 let attemptsSet = [];
 let loading = false;
 let previousDatePickerValue = undefined;
-let availableDates = [];
+// Set once at boot by fetchFirstPuzzleDate() — null means "no minimum",
+// the safe default when puzzles/manifest.json is missing/blank/unreachable.
+let firstPuzzleDate = null;
 
 function textSort(x, y) {
   return x.localeCompare(y);
@@ -176,28 +210,29 @@ function getUrlDateParam() {
   return match ? match[1] : null;
 }
 
-async function fetchManifest() {
-  try {
-    let dates = await xhrGetJson("puzzles/manifest.json");
-    return Array.isArray(dates) ? dates.slice().sort() : [];
-  } catch (e) {
-    return [];
-  }
-}
-
 function pickInitialDate() {
   let today = todayString();
   let urlDate = getUrlDateParam();
-  if (urlDate && availableDates.includes(urlDate)) {
+  if (urlDate && urlDate <= today) {
     return urlDate;
   }
-  if (availableDates.includes(today)) {
-    return today;
+  return today;
+}
+
+// puzzles/manifest.json is back, but much narrower than before it was
+// removed: its only field is firstPuzzleDate, a UI bound on how far back the
+// calendar picker can go (see init()/setDate()) — not a source of truth for
+// which dates have real puzzles (that's still just "try the dated file,
+// fall back to a default00N.json", unaffected by this). Missing file, a
+// missing/blank field, or any fetch failure all resolve to null — "no
+// minimum," the same safe-default behavior as today.
+async function fetchFirstPuzzleDate() {
+  try {
+    let data = await xhrGetJson(`${SITE_URL}puzzles/manifest.json`);
+    return data.firstPuzzleDate || null;
+  } catch (e) {
+    return null;
   }
-  // Tomorrow's puzzle can already be generated and sitting in the manifest
-  // ahead of its date — never default (or allow picking) past today.
-  let playable = availableDates.filter((d) => d <= today);
-  return playable.length ? playable[playable.length - 1] : today;
 }
 
 // Container queries (cqw) aren't available on Gecko 84 — there's no old-CSS
@@ -259,7 +294,15 @@ function clearThePuzzle() {
   deselectAll();
   Array.from(document.getElementsByClassName("card")).forEach((x) => x.remove());
   Array.from(document.getElementsByClassName("row")).forEach((x) => x.remove());
-  Array.from(document.getElementsByClassName("answer")).forEach((x) => x.remove());
+  // Clears every solved .answer row *and* the #answers-share-hint button
+  // together (drawAnswer()/ensureAnswersShareHint() will recreate the hint
+  // fresh the next time a group is actually solved).
+  answers.innerHTML = "";
+  // #answers only becomes nav-selectable once drawAnswer() actually gives it
+  // content (see there) — with none yet, it's zero-height and sits at the
+  // exact same Y as the first tile row, which would merge it into that
+  // row's column-indexing in moveFocus() if it were selectable while empty.
+  answers.removeAttribute("nav-selectable");
   seedGuesses();
   results.style.display = "none";
   gameControls.style.display = "none";
@@ -277,13 +320,36 @@ function seedGuesses() {
   }
 }
 
+// There are 8 hand-authored default puzzles (puzzles/default001.json ..
+// default008.json) for getThePuzzle() to fall back on when a date has no
+// real published puzzle — day-of-year mod 8 (+1) deterministically picks
+// one of the 8 per calendar date, so the same missing date always shows the
+// same fallback (not random) while different dates spread across all 8
+// rather than always landing on the same one. All 8 share "id": 0, so
+// "Fourplay #0" is correct regardless of which one loads.
+function defaultPuzzleKeyFor(dateStr) {
+  let date = new Date(dateStr + "T00:00:00Z");
+  let startOfYear = Date.UTC(date.getUTCFullYear(), 0, 1);
+  let dayOfYear = Math.floor((date.getTime() - startOfYear) / 86400000) + 1;
+  let n = (dayOfYear % 8) + 1;
+  return `puzzles/default${String(n).padStart(3, "0")}.json`;
+}
+
 async function getThePuzzle() {
   if (loading) {
     return;
   }
   loading = true;
   try {
-    puzzleSolution = await xhrGetJson(`puzzles/${datePicker.value}.json`);
+    try {
+      puzzleSolution = await xhrGetJson(`${SITE_URL}puzzles/${datePicker.value}.json`);
+    } catch (e) {
+      // No puzzle published for that date (yet, or ever, e.g. way in the
+      // past before the site existed) — fall back to one of the 8
+      // hand-authored default puzzles rather than showing an error, chosen
+      // deterministically by defaultPuzzleKeyFor() above.
+      puzzleSolution = await xhrGetJson(`${SITE_URL}${defaultPuzzleKeyFor(datePicker.value)}`);
+    }
 
     gameControls.style.display = "flex";
     guesses.style.display = "flex";
@@ -308,7 +374,10 @@ async function getThePuzzle() {
       removeAllShakes();
     }
 
-    updateSoftkeys();
+    // setFocus() calls updateSoftkeys() itself. selectables()[0] is
+    // #results-content (already visible + first in document order) if the
+    // replay above found an already-completed saved game, or
+    // #wrap-date-picker otherwise — either way, the right thing to land on.
     setFocus(selectables()[0]);
   } catch (e) {
     showMessage("No puzzle for that date!");
@@ -332,7 +401,6 @@ function drawAnswer(group, colorClass) {
   let cardDiv = document.createElement("div");
   cardDiv.classList.add("answer");
   let contentDiv = document.createElement("div");
-  contentDiv.setAttribute("nav-selectable", "true");
   let categoryP = document.createElement("p");
   let wordListP = document.createElement("p");
   categoryP.innerText = group.category;
@@ -342,6 +410,35 @@ function drawAnswer(group, colorClass) {
   cardDiv.appendChild(contentDiv);
   cardDiv.classList.add(colorClass);
   answers.appendChild(cardDiv);
+  // #answers itself is the D-pad stop (one item for however many groups are
+  // solved so far), not each individual answer row — setting this here,
+  // now that there's actually content, is what avoids the zero-height
+  // empty-#answers row-merging problem noted in clearThePuzzle().
+  answers.setAttribute("nav-selectable", "true");
+  ensureAnswersShareHint();
+}
+
+// Same purely-visual affordance as #results-content's "Share" button in
+// index.html, but #answers is built incrementally (a new .answer row per
+// solved group) rather than static markup, so this can't just be written
+// once in HTML — appendChild on an *already-existing* node moves it rather
+// than cloning it, so calling this at the end of every drawAnswer() keeps
+// the button pinned as the last child as new rows get added after it.
+function ensureAnswersShareHint() {
+  if (!SHARE_ANSWERS_ENABLED) {
+    return;
+  }
+  let hint = document.getElementById("answers-share-hint");
+  if (!hint) {
+    hint = document.createElement("button");
+    hint.id = "answers-share-hint";
+    hint.type = "button";
+    hint.className = "share-hint";
+    hint.tabIndex = -1;
+    hint.setAttribute("aria-hidden", "true");
+    hint.textContent = "Share";
+  }
+  answers.appendChild(hint);
 }
 
 // --- Interaction -----------------------------------------------------------
@@ -363,6 +460,28 @@ function select(event) {
   toggleChosen(event.target);
 }
 
+// Anonymous, analytics-only ping — the backend computes a score/success
+// verdict from this and only logs it (see backend/lambda/fourplay/
+// results.py), nothing is stored, nothing comes back. Best-effort: a
+// failure here must never surface to the player or affect the game in any
+// way, so this is deliberately fire-and-forget with no user-facing error
+// path. No explicit Content-Type header, same CORS-preflight reason as
+// submit-group.html's fetch — "application/json" would force a preflight
+// this POST-only backend has no route for.
+function submitResult() {
+  fetch(`${API_HOST}/submit-result`, {
+    method: "POST",
+    body: JSON.stringify({
+      // datePicker.value (the calendar date actually played), not
+      // puzzleSolution.date — one of the 8 rotating default puzzles can
+      // back many different dates, so its own "date" field (blank on most
+      // of them) isn't what analytics should bucket by.
+      date: datePicker.value,
+      attempts: attempts.map((attempt) => attempt.map((c) => DIFFICULTY_CLASSES.indexOf(c) + 1)),
+    }),
+  }).catch(() => {});
+}
+
 function checkGuessCallback() {
   let chosenTiles = Array.from(document.getElementsByClassName("chosen"));
   if (chosenTiles.length != 4) {
@@ -373,8 +492,18 @@ function checkGuessCallback() {
     showMessage("Already Guessed!");
     return;
   }
+  // Hooked here rather than inside gameOver() itself: gameOver() also runs
+  // during the IndexedDB replay path (getThePuzzle() reconstructing an
+  // already-completed prior session via direct checkGuess() calls, which
+  // never goes through this function) — hooking the live-guess entry point
+  // instead means reloading or revisiting an already-finished puzzle never
+  // re-submits a duplicate result, only a genuinely just-now completion does.
+  let wasAlreadyEnded = gameEnded;
   checkGuess(chosenValues);
   persistGameState();
+  if (!wasAlreadyEnded && gameEnded) {
+    submitResult();
+  }
 }
 
 // Pure game-state mutator — used both for a live guess (via
@@ -468,7 +597,8 @@ function gameOver(success) {
     drawAttempt(attempt);
   }
   persistGameState();
-  updateSoftkeys();
+  // setFocus() calls updateSoftkeys() itself (the center label depends on
+  // what's focused), so no separate call needed here.
   setFocus(document.getElementById("results-content"));
 }
 
@@ -521,7 +651,7 @@ function setDate(event) {
     datePicker.value = previousDatePickerValue;
     return;
   }
-  if (!availableDates.includes(requested) || requested > todayString()) {
+  if (requested > todayString() || (firstPuzzleDate && requested < firstPuzzleDate)) {
     datePicker.value = previousDatePickerValue;
     showMessage("No puzzle for that date!");
     return;
@@ -590,6 +720,10 @@ function setFocus(el) {
   }
   el.focus();
   scrollToVisible(el);
+  // The softkey center label depends on what's currently focused (e.g.
+  // "Share" only while #results-content is selected) — keep it in sync
+  // every time focus moves, not just when gameEnded flips.
+  updateSoftkeys();
 }
 
 // Groups the current nav-selectable elements into rows by on-screen
@@ -652,15 +786,64 @@ function moveFocus(key) {
   }
 }
 
-// Generic "activate the currently-focused nav-selectable element" —
-// same fallback shape as kaios-calorie-counter's interact()/el.click().
-// Two elements need special-casing instead of a plain .click(): the date
+// The NYT-Connections-style share text: the site link, the puzzle's own id
+// (a stored field, not derived — see backend/lambda/fourplay/puzzle.py's
+// _next_puzzle_id()), the calendar date played (datePicker.value, not
+// puzzleSolution.date — see submitResult()'s comment above for why), then
+// one emoji row per attempt — the same attempts/DIFFICULTY_CLASSES data
+// drawAttempt() already renders as .result-cell divs, just as text instead
+// of DOM.
+function buildShareText() {
+  let squares = attempts.map((attempt) => attempt.map((c) => DIFFICULTY_EMOJI[c]).join("")).join("\n");
+  return `${SITE_URL}\nFourplay #${puzzleSolution.id}\n${datePicker.value}\n\n${squares}`;
+}
+
+// sms: with no recipient pre-fills just the body — the exact separator
+// before "body=" is the one real cross-platform quirk here: iOS requires
+// "&", every other platform (Android, KaiOS's Gecko-based browser, etc.)
+// wants "?".
+function shareText(text) {
+  let isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  let separator = isIOS ? "&" : "?";
+  window.location.href = `sms:${separator}body=${encodeURIComponent(text)}`;
+}
+
+function shareViaSms() {
+  shareText(buildShareText());
+}
+
+function toTitleCase(word) {
+  return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+}
+
+// Same shape as buildShareText() above, but the category + word list for
+// each group *solved so far* instead of the emoji recap grid — reads from
+// puzzleSolution.groups (clean, original-case data) filtered down to
+// whichever groups already have a drawn .answer row, the same "is this one
+// solved" check gameOver() uses, rather than the full spoiler solution.
+function buildAnswersShareText() {
+  let solved = puzzleSolution.groups.filter((group, i) => document.querySelector(`.answer.${DIFFICULTY_CLASSES[i]}`));
+  let groupsText = solved.map((group) => `${group.category}\n${group.words.map(toTitleCase).join(", ")}`).join("\n\n");
+  return `${SITE_URL}\nFourplay answers #${puzzleSolution.id}\n${datePicker.value}\n\n${groupsText}`;
+}
+
+function shareAnswersViaSms() {
+  shareText(buildAnswersShareText());
+}
+
+// Generic "activate the currently-focused nav-selectable element" — same
+// fallback shape as kaios-calorie-counter's interact()/el.click(). Four
+// elements need special-casing instead of a plain .click(): the date
 // wrapper (focusing the real input is what pops the picker, see
-// wireDatePickerWrapper below) and .card tiles (their click listener lives
-// on the tile's *inner* div, not this nav-selectable outer one, so a plain
-// .click() on the outer div wouldn't do anything). Everything else — e.g.
-// the "Submit a group" link — is a real interactive element already, so
-// .click() on it directly (a real <a>, so this navigates it) is correct.
+// wireDatePickerWrapper below), .card tiles (their click listener lives on
+// the tile's *inner* div, not this nav-selectable outer one, so a plain
+// .click() on the outer div wouldn't do anything), and #results-content /
+// #answers (share instead of a no-op click, gated by the SHARE_*_ENABLED
+// flags at the top of the file — falls through to the harmless .click()
+// no-op when disabled, same as before either feature existed). Everything
+// else — e.g. the "Submit a group" link — is a real interactive element
+// already, so .click() on it directly (a real <a>, so this navigates it)
+// is correct.
 function interact(el) {
   if (!el) {
     return;
@@ -669,19 +852,72 @@ function interact(el) {
     datePicker.focus();
   } else if (el.classList.contains("card")) {
     toggleChosen(el.querySelector("div"));
+  } else if (el.id === "results-content" && SHARE_RESULTS_ENABLED) {
+    shareViaSms();
+  } else if (el.id === "answers" && SHARE_ANSWERS_ENABLED) {
+    shareAnswersViaSms();
   } else {
     el.click();
   }
 }
 
-// Softkey labels are effectively static — this puzzle has one screen, not
-// kaios-calorie-counter's multiple panels — but blank out once the game has
-// ended, since Select/Guess/Deselect All are all meaningless on the results
-// screen (nothing left nav-selectable to act on there anyway).
+// When disabled, strips the static "Share" button out of index.html's
+// #results-content entirely (rather than just leaving it un-wired) so
+// there's no dead-looking button sitting around.
+function wireResultsContentClick() {
+  let container = document.getElementById("results-content");
+  if (!SHARE_RESULTS_ENABLED) {
+    let hint = container.querySelector(".share-hint");
+    if (hint) {
+      hint.remove();
+    }
+    return;
+  }
+  container.classList.add("share-enabled");
+  container.addEventListener("click", shareViaSms);
+}
+
+function wireAnswersClick() {
+  if (!SHARE_ANSWERS_ENABLED) {
+    return;
+  }
+  answers.classList.add("share-enabled");
+  answers.addEventListener("click", shareAnswersViaSms);
+}
+
+// Softkey labels reflect whatever's currently focused — not just gameEnded
+// — since a few elements have one single obvious center action and nothing
+// meaningful for the other two keys: the date wrapper ("Change"), the
+// submit-group link ("Open"), and #results-content/#answers ("Share", only
+// when its SHARE_*_ENABLED flag is on). Anything else (a tile, a disabled
+// share area, or nothing yet) falls back to the normal Select/Guess/
+// Deselect All trio, blanked out once the game's ended.
 function updateSoftkeys() {
-  document.getElementById("sk-left").textContent = gameEnded ? "" : "Deselect All";
-  document.getElementById("sk-center").textContent = gameEnded ? "" : "Select";
-  document.getElementById("sk-right").textContent = gameEnded ? "" : "Guess";
+  let current = focused();
+  let id = current ? current.id : null;
+  let left = document.getElementById("sk-left");
+  let center = document.getElementById("sk-center");
+  let right = document.getElementById("sk-right");
+  let onShareableResults = id === "results-content" && SHARE_RESULTS_ENABLED;
+  let onShareableAnswers = id === "answers" && SHARE_ANSWERS_ENABLED;
+
+  if (id === "wrap-date-picker") {
+    left.textContent = "";
+    center.textContent = "Change";
+    right.textContent = "";
+  } else if (id === "submit-group-anchor") {
+    left.textContent = "";
+    center.textContent = "Open";
+    right.textContent = "";
+  } else if (onShareableResults || onShareableAnswers) {
+    left.textContent = "";
+    center.textContent = "Share";
+    right.textContent = "";
+  } else {
+    left.textContent = gameEnded ? "" : "Deselect All";
+    center.textContent = gameEnded ? "" : "Select";
+    right.textContent = gameEnded ? "" : "Guess";
+  }
 }
 
 // The nav-selectable D-pad stop for the date field is this wrapper, not
@@ -749,14 +985,16 @@ function handleKeydown(event) {
 // --- Boot --------------------------------------------------------------
 computeContrastColors();
 wireDatePickerWrapper();
+wireResultsContentClick();
+wireAnswersClick();
 wireSoftkeyClicks();
 document.addEventListener("keydown", handleKeydown);
 window.addEventListener("resize", syncAnswerRowHeight);
 
 (async function init() {
-  availableDates = await fetchManifest();
-  if (availableDates.length) {
-    datePicker.min = availableDates[0];
+  firstPuzzleDate = await fetchFirstPuzzleDate();
+  if (firstPuzzleDate) {
+    datePicker.min = firstPuzzleDate;
   }
   datePicker.max = todayString();
   datePicker.value = pickInitialDate();

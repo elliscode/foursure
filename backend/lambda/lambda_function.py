@@ -3,7 +3,8 @@ import traceback
 from fourplay.admin import decide_group_route, edit_group_route, list_groups_route
 from fourplay.groups import submit_group_route
 from fourplay.logger import log
-from fourplay.puzzle import generate_puzzle
+from fourplay.puzzle import create_puzzle_route, delete_puzzle_route, generate_puzzle, list_puzzles_route
+from fourplay.results import submit_result_route
 from fourplay.utils import (
     format_response,
     get_request_metadata,
@@ -41,6 +42,11 @@ def route(event):
     if path_equals(event=event, method="POST", path="/submit-group"):
         return submit_group_route(event)
 
+    # Anonymous, analytics-only — see fourplay/results.py. Nothing is
+    # stored; the point is purely the log line it prints.
+    if path_equals(event=event, method="POST", path="/submit-result"):
+        return submit_result_route(event)
+
     # Admin moderation routes — phone-OTP login, then list/decide/edit.
     if path_equals(event=event, method="POST", path="/admin/otp"):
         return otp_route(event)
@@ -54,6 +60,16 @@ def route(event):
         return decide_group_route(event)
     if path_equals(event=event, method="POST", path="/admin/edit-group"):
         return edit_group_route(event)
+
+    # Puzzle construction — build whole puzzles ahead of time from approved
+    # groups; generate_puzzle() (EventBridge-triggered, above in
+    # lambda_handler) just picks the oldest one out of this queue nightly.
+    if path_equals(event=event, method="POST", path="/admin/create-puzzle"):
+        return create_puzzle_route(event)
+    if path_equals(event=event, method="POST", path="/admin/list-puzzles"):
+        return list_puzzles_route(event)
+    if path_equals(event=event, method="POST", path="/admin/delete-puzzle"):
+        return delete_puzzle_route(event)
 
     if path_equals(event=event, method="POST", path="/test"):
         return format_response(event=event, http_code=200, body={"status": "up"})

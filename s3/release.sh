@@ -1,4 +1,4 @@
-BUCKET=fourplay-elliscode-com
+BUCKET=daniel-townsend-fourplay
 
 rm -rf css js
 cp -r ../frontend/css .

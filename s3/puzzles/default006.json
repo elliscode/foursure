@@ -1,0 +1,26 @@
+{
+  "id": 0,
+  "date": "",
+  "groups": [
+    {
+      "category": "Body parts",
+      "words": ["HAND", "FOOT", "EYE", "EAR"],
+      "difficulty": 1
+    },
+    {
+      "category": "Weather conditions",
+      "words": ["RAIN", "SNOW", "WIND", "FOG"],
+      "difficulty": 2
+    },
+    {
+      "category": "Farm animals",
+      "words": ["COW", "PIG", "HORSE", "SHEEP"],
+      "difficulty": 3
+    },
+    {
+      "category": "Things with wheels",
+      "words": ["BICYCLE", "CAR", "WAGON", "SKATEBOARD"],
+      "difficulty": 4
+    }
+  ]
+}

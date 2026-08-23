@@ -1,0 +1,26 @@
+{
+  "id": 0,
+  "date": "",
+  "groups": [
+    {
+      "category": "First four letters of the alphabet",
+      "words": ["A", "B", "C", "D"],
+      "difficulty": 1
+    },
+    {
+      "category": "Common drinks",
+      "words": ["WATER", "MILK", "COFFEE", "TEA"],
+      "difficulty": 2
+    },
+    {
+      "category": "Things you can read",
+      "words": ["BOOK", "MAGAZINE", "NEWSPAPER", "MENU"],
+      "difficulty": 3
+    },
+    {
+      "category": "Things you can open",
+      "words": ["DOOR", "WINDOW", "BOX", "ENVELOPE"],
+      "difficulty": 4
+    }
+  ]
+}

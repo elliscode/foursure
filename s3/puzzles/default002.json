@@ -1,0 +1,26 @@
+{
+  "id": 0,
+  "date": "",
+  "groups": [
+    {
+      "category": "Colors",
+      "words": ["RED", "BLUE", "GREEN", "YELLOW"],
+      "difficulty": 1
+    },
+    {
+      "category": "Shapes",
+      "words": ["CIRCLE", "SQUARE", "TRIANGLE", "RECTANGLE"],
+      "difficulty": 2
+    },
+    {
+      "category": "Days of the week",
+      "words": ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY"],
+      "difficulty": 3
+    },
+    {
+      "category": "Planets closest to the sun",
+      "words": ["MERCURY", "VENUS", "EARTH", "MARS"],
+      "difficulty": 4
+    }
+  ]
+}

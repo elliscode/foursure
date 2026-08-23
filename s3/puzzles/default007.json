@@ -1,0 +1,26 @@
+{
+  "id": 0,
+  "date": "",
+  "groups": [
+    {
+      "category": "Months with 31 days",
+      "words": ["JANUARY", "MARCH", "JULY", "OCTOBER"],
+      "difficulty": 1
+    },
+    {
+      "category": "Things in the sky",
+      "words": ["SUN", "MOON", "STARS", "CLOUDS"],
+      "difficulty": 2
+    },
+    {
+      "category": "Kitchen utensils",
+      "words": ["SPOON", "FORK", "KNIFE", "SPATULA"],
+      "difficulty": 3
+    },
+    {
+      "category": "Common sports",
+      "words": ["BASEBALL", "BASKETBALL", "FOOTBALL", "SOCCER"],
+      "difficulty": 4
+    }
+  ]
+}

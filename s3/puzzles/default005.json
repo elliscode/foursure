@@ -1,0 +1,26 @@
+{
+  "id": 0,
+  "date": "",
+  "groups": [
+    {
+      "category": "Numbers",
+      "words": ["ONE", "TWO", "THREE", "FOUR"],
+      "difficulty": 1
+    },
+    {
+      "category": "Directions",
+      "words": ["NORTH", "SOUTH", "EAST", "WEST"],
+      "difficulty": 2
+    },
+    {
+      "category": "Things found in a classroom",
+      "words": ["DESK", "CHAIR", "PENCIL", "BOOK"],
+      "difficulty": 3
+    },
+    {
+      "category": "Ice cream flavors",
+      "words": ["VANILLA", "CHOCOLATE", "STRAWBERRY", "MINT"],
+      "difficulty": 4
+    }
+  ]
+}

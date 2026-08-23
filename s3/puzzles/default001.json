@@ -1,9 +1,10 @@
 {
-  "date": "2026-08-21",
+  "id": 0,
+  "date": "",
   "groups": [
     {
-      "category": "Fruits people mistake for vegetables",
-      "words": ["TOMATOES", "CUCUMBERS", "EGGPLANTS", "AVOCADOS"],
+      "category": "Breakfast pastries",
+      "words": ["Waffles", "Pancakes", "Muffins", "Crepes"],
       "difficulty": 1
     },
     {

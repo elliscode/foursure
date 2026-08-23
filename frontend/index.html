@@ -18,6 +18,12 @@
         <p id="display-text">TEXT</p>
         <div id="result-blocks"></div>
         <p id="date-text">0000-00-00</p>
+        <!-- Purely a visual/mouse-click affordance — #results-content itself
+             is the real D-pad/screen-reader target and already shares on
+             click, this button's click just bubbles up to that same
+             listener. Hidden at KaiOS width, where the softkey bar's
+             center label already says "Share". -->
+        <button type="button" class="share-hint" tabindex="-1" aria-hidden="true">Share</button>
       </div>
     </div>
 
@@ -46,7 +52,7 @@
         </div>
       </div>
 
-      <p id="submit-group-link"><a href="submit-group.html" nav-selectable="true">Have four words that belong together? Submit a group &rarr;</a></p>
+      <p id="submit-group-link"><a href="submit-group.html" id="submit-group-anchor" nav-selectable="true">Have four words that belong together? Submit a group &rarr;</a></p>
     </div>
 
     <!-- KaiOS softkey bar — hidden above 240px width, see stylesheet.css -->

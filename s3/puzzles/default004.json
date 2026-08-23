@@ -1,0 +1,26 @@
+{
+  "id": 0,
+  "date": "",
+  "groups": [
+    {
+      "category": "Seasons",
+      "words": ["SPRING", "SUMMER", "FALL", "WINTER"],
+      "difficulty": 1
+    },
+    {
+      "category": "Card suits",
+      "words": ["HEARTS", "DIAMONDS", "CLUBS", "SPADES"],
+      "difficulty": 2
+    },
+    {
+      "category": "Types of transportation",
+      "words": ["CAR", "BUS", "TRAIN", "PLANE"],
+      "difficulty": 3
+    },
+    {
+      "category": "Breakfast foods",
+      "words": ["EGGS", "BACON", "TOAST", "CEREAL"],
+      "difficulty": 4
+    }
+  ]
+}
