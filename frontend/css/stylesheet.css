@@ -430,6 +430,54 @@ h1 {
   color: var(--chosen-bg);
 }
 
+/* KaiOS ad banner (KaiAds SDK, see puzzle.js's displayAd()) — a persistent
+   60px-tall placeholder block regardless of whether an ad is currently
+   loaded, same as kaios-gps-location-sharer's own #ad-container, so the
+   page doesn't reflow every time displayAd() clears/recreates the ad on its
+   refresh interval. Deliberately the very last thing on the page. */
+#ad-container {
+  width: 100%;
+  max-width: 560px;
+  height: 60px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: var(--tile-bg);
+  border-radius: 8px;
+  margin: 32px 0 0;
+}
+
+/* Not this file's usual nav-selectable="true" attribute — see the comment
+   on selectables() in puzzle.js for why the SDK's own navClass has to be a
+   plain class instead. Fixed 240x60 to match the size requested from
+   getKaiAd(). */
+.nav-selectable-ad {
+  width: 240px;
+  max-width: 240px;
+  min-width: 240px;
+  height: 60px;
+  max-height: 60px;
+  min-height: 60px;
+  overflow: hidden;
+  outline: none;
+}
+
+.nav-selectable-ad[nav-selected="true"] {
+  box-shadow: 0 0 0 3px rgba(58, 58, 52, 0.5);
+}
+
+/* The ad's fixed 240px width exactly matches a real KaiOS screen, but
+   body's 4px side padding at this width (see below) would otherwise clip
+   8px off it — bleed #ad-container out to the true edges here only. */
+@media (max-width: 240px) {
+  #ad-container {
+    margin-left: -4px;
+    margin-right: -4px;
+    width: calc(100% + 8px);
+    border-radius: 0;
+  }
+}
+
 /* --- KaiOS softkey bar ------------------------------------------------
    Ported from kaios-calorie-counter/frontend-v3/css/softkey.css: fixed
    bottom bar labeling the phone's physical SoftLeft/center/SoftRight keys.

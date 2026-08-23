@@ -681,8 +681,14 @@ function isVisible(el) {
   return el.offsetParent !== null;
 }
 
+// .nav-selectable-ad (no such element until displayAd() below successfully
+// loads one) is unioned in alongside the usual nav-selectable="true"
+// attribute convention because the KaiAds SDK applies that as a literal
+// class name to whatever element it creates — it's not something this file
+// controls, so it can't carry the attribute instead. Same fix used in
+// kaios-gps-location-sharer's own getAllElements().
 function selectables() {
-  return Array.from(document.querySelectorAll('[nav-selectable="true"]')).filter(isVisible);
+  return Array.from(document.querySelectorAll('[nav-selectable="true"], .nav-selectable-ad')).filter(isVisible);
 }
 
 function focused() {
@@ -767,8 +773,9 @@ function moveFocus(key) {
   if (key === "ArrowUp" || key === "ArrowDown") {
     // Move to exactly the adjacent row (wrapping at the ends) and clamp the
     // column index to whatever that row actually has — not every row is 4
-    // wide (the date-picker wrapper, answer rows, and the submit-group link
-    // are each their own 1-item row). Looking for an *exact* index match
+    // wide (the date-picker wrapper, answer rows, the submit-group link, and
+    // the ad banner, if one's loaded, are each their own 1-item row).
+    // Looking for an *exact* index match
     // and skipping past rows without one (the previous approach) meant
     // those 1-item rows were only ever reachable from column 0, since
     // that's the only column index they have.
@@ -888,13 +895,15 @@ function wireAnswersClick() {
 // Softkey labels reflect whatever's currently focused — not just gameEnded
 // — since a few elements have one single obvious center action and nothing
 // meaningful for the other two keys: the date wrapper ("Change"), the
-// submit-group link ("Open"), and #results-content/#answers ("Share", only
-// when its SHARE_*_ENABLED flag is on). Anything else (a tile, a disabled
+// submit-group link ("Open"), #results-content/#answers ("Share", only when
+// its SHARE_*_ENABLED flag is on), and the ad banner ("Select", if one's
+// currently loaded — see displayAd()). Anything else (a tile, a disabled
 // share area, or nothing yet) falls back to the normal Select/Guess/
 // Deselect All trio, blanked out once the game's ended.
 function updateSoftkeys() {
   let current = focused();
   let id = current ? current.id : null;
+  let isAd = current ? current.classList.contains("nav-selectable-ad") : false;
   let left = document.getElementById("sk-left");
   let center = document.getElementById("sk-center");
   let right = document.getElementById("sk-right");
@@ -912,6 +921,10 @@ function updateSoftkeys() {
   } else if (onShareableResults || onShareableAnswers) {
     left.textContent = "";
     center.textContent = "Share";
+    right.textContent = "";
+  } else if (isAd) {
+    left.textContent = "";
+    center.textContent = "Select";
     right.textContent = "";
   } else {
     left.textContent = gameEnded ? "" : "Deselect All";
@@ -982,6 +995,51 @@ function handleKeydown(event) {
   }
 }
 
+// --- KaiOS ad banner -----------------------------------------------------
+// Adapted from kaios-gps-location-sharer/frontend-v3/src/index.js's
+// displayAd()/getKaiAd() — same SDK (js/kaiads.v5.min.js, an unmodified
+// vendor copy), same shared elliscode publisher account, refreshed on the
+// same 300s interval. The one deliberate difference from that reference:
+// #ad-container sits at the very bottom of index.html instead of the top.
+const KAIADS_PUBLISHER = "91b81d86-37cf-4a2f-a895-111efa5b36bb";
+const KAIADS_APP = "fourplay";
+// Named for where it sits on this page ("bottombar"), unlike
+// kaios-gps-location-sharer's "topbarad" — still just a placeholder string
+// until "fourplay" and this slot are actually registered in the KaiAds
+// publisher dashboard; until then onerror below just means no ad shows.
+const KAIADS_SLOT = "bottombar";
+
+function displayAd() {
+  Array.from(document.getElementsByClassName("nav-selectable-ad")).forEach((el) => el.remove());
+  if (typeof getKaiAd !== "function") {
+    return;
+  }
+  getKaiAd({
+    publisher: KAIADS_PUBLISHER,
+    app: KAIADS_APP,
+    slot: KAIADS_SLOT,
+    h: 60,
+    w: 240,
+    // container is required for responsive ads
+    container: document.getElementById("ad-container"),
+    onerror: function () {
+      // Best-effort, same posture as submitResult()'s fire-and-forget ping
+      // above — a missing/failed ad must never affect the game.
+    },
+    onready: function (ad) {
+      ad.call("display", {
+        // KaiOS apps own their own D-pad navigation — navClass is the class
+        // the SDK applies to the element it creates, unioned into
+        // selectables() above since it can't carry nav-selectable="true"
+        // directly.
+        tabindex: -1,
+        navClass: "nav-selectable-ad",
+        display: "block",
+      });
+    },
+  });
+}
+
 // --- Boot --------------------------------------------------------------
 computeContrastColors();
 wireDatePickerWrapper();
@@ -990,6 +1048,8 @@ wireAnswersClick();
 wireSoftkeyClicks();
 document.addEventListener("keydown", handleKeydown);
 window.addEventListener("resize", syncAnswerRowHeight);
+displayAd();
+setInterval(displayAd, 300 * 1000);
 
 (async function init() {
   firstPuzzleDate = await fetchFirstPuzzleDate();

@@ -55,6 +55,10 @@
       <p id="submit-group-link"><a href="submit-group.html" id="submit-group-anchor" nav-selectable="true">Have four words that belong together? Submit a group &rarr;</a></p>
     </div>
 
+    <!-- KaiOS ad banner (KaiAds SDK) — deliberately last, below everything
+         else on the page. See puzzle.js's displayAd(). -->
+    <div id="ad-container"></div>
+
     <!-- KaiOS softkey bar — hidden above 240px width, see stylesheet.css -->
     <div id="softkey">
       <label id="sk-left"></label>
@@ -62,6 +66,7 @@
       <label id="sk-right"></label>
     </div>
 
+    <script src="js/kaiads.v5.min.js"></script>
     <script src="js/puzzle.js"></script>
   </body>
 </html>
