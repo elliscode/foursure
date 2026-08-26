@@ -33,6 +33,15 @@ const DIFFICULTY_EMOJI = {
 // origins read the same live data regardless of which one served the page.
 const SITE_URL = "https://fourplay.elliscode.com/";
 const API_HOST = "https://api.fourplay.elliscode.com";
+// Matches stylesheet.css's `@media (max-width: 240px)` breakpoint — the
+// KaiOS/D-pad-driven layout. Above this width, nobody's navigating with
+// arrow keys (mouse on desktop, no arrow-key access at all on a
+// touchscreen), so auto-focusing something on load would just draw an
+// unexplained selection halo nobody asked for — see getThePuzzle()'s use
+// of this below. Arrow-key navigation still works fine above this width if
+// someone actually uses it: moveFocus() lazily calls setFocus(items[0])
+// itself the first time it finds nothing currently focused.
+const KAIOS_WIDTH_BREAKPOINT = 240;
 
 // --- Feature flags -----------------------------------------------------
 // Toggle the SMS-share affordance on/off independently per area. Both areas
@@ -46,6 +55,7 @@ let SHARE_RESULTS_ENABLED = true;
 let SHARE_ANSWERS_ENABLED = false;
 
 const puzzleEl = document.getElementById("puzzle");
+const gameDiv = document.querySelector(".game-div");
 const answers = document.getElementById("answers");
 const gameControls = document.getElementById("game-controls");
 const guesses = document.getElementById("guesses");
@@ -57,6 +67,7 @@ const comment = document.getElementById("comment");
 const commentSpan = document.getElementById("comment-span");
 const datePicker = document.getElementById("date-picker");
 const guessSpot = document.getElementById("guess-spot");
+const softKeyBar = document.getElementById("softkey");
 
 let gameEnded = false;
 let gameWon = null;
@@ -93,6 +104,17 @@ function findParentWithClass(el, className) {
     el = el.parentElement;
   }
   return el;
+}
+
+function hasParentClass(el, className) {
+  let parent = el;
+  while (parent) {
+    if (parent.classList.contains(className)) {
+      return true;
+    }
+    parent = parent.parentElement;
+  }
+  return false;
 }
 
 // kaios-calorie-counter/notes/kaios-fetch-vs-xhr-cors-mystery.md documents
@@ -340,11 +362,41 @@ function defaultPuzzleKeyFor(dateStr) {
   return `puzzles/default${String(n).padStart(3, "0")}.json`;
 }
 
+// 16 inert placeholder tiles, same 4x4 shape as the real grid, shown for
+// however long getThePuzzle()'s fetch takes (network conditions on real
+// KaiOS hardware are the whole reason this exists — a blank #puzzle for a
+// perceptible stretch reads as broken, not loading). Their own class, not
+// .card -- code elsewhere queries .card assuming every match is a real,
+// interactive tile (checkGuess(), gameOver(), succeedPuzzleIfAppropriate(),
+// etc.), and these are neither nav-selectable nor click-wired.
+//
+// index.html already bakes 16 of these into #puzzle directly, so the very
+// first paint has them before puzzle.js has even finished loading, let
+// alone run -- this only generates its own once those are gone (the first
+// removePuzzleSkeleton() call, right before the first real draw, clears
+// them same as it clears these).
+function showPuzzleSkeleton() {
+  if (document.getElementsByClassName("skeleton-tile").length > 0) {
+    return;
+  }
+  for (let i = 0; i < 16; i++) {
+    let tile = document.createElement("div");
+    tile.classList.add("skeleton-tile");
+    tile.appendChild(document.createElement("div"));
+    puzzleEl.appendChild(tile);
+  }
+}
+
+function removePuzzleSkeleton() {
+  Array.from(document.getElementsByClassName("skeleton-tile")).forEach((x) => x.remove());
+}
+
 async function getThePuzzle() {
   if (loading) {
     return;
   }
   loading = true;
+  showPuzzleSkeleton();
   try {
     try {
       puzzleSolution = await xhrGetJson(`${SITE_URL}puzzles/${datePicker.value}.json`);
@@ -365,6 +417,7 @@ async function getThePuzzle() {
         words.push(word);
       }
     }
+    removePuzzleSkeleton();
     for (let word of shuffle(words)) {
       drawCard(word);
     }
@@ -382,9 +435,14 @@ async function getThePuzzle() {
     // setFocus() calls updateSoftkeys() itself. selectables()[0] is
     // #results-content (already visible + first in document order) if the
     // replay above found an already-completed saved game, or
-    // #wrap-date-picker otherwise — either way, the right thing to land on.
-    setFocus(selectables()[0]);
+    // #wrap-date-picker otherwise — either way, the right thing to land on
+    // *if* someone's actually navigating with arrow keys (see
+    // KAIOS_WIDTH_BREAKPOINT above for why that's conditional).
+    if (window.innerWidth <= KAIOS_WIDTH_BREAKPOINT) {
+      setFocus(selectables()[0]);
+    }
   } catch (e) {
+    removePuzzleSkeleton();
     showMessage("No puzzle for that date!");
   }
   loading = false;
@@ -459,6 +517,9 @@ function toggleChosen(contentDiv) {
   } else if (document.querySelectorAll("div.chosen").length < 4) {
     contentDiv.classList.add("chosen");
   }
+  // The "Guess" softkey's disabled look (see updateSoftkeys()) depends on
+  // how many tiles are chosen, which just changed.
+  updateSoftkeys();
 }
 
 function select(event) {
@@ -532,10 +593,15 @@ function checkGuess(chosenValues) {
       // to the date picker (selectables()[0]) instead of staying in the
       // grid. Land on the first remaining tile instead, if there is one —
       // if not, the puzzle's done and gameOver() (via
-      // succeedPuzzleIfAppropriate() below) sets focus on its own.
-      let nextCard = document.querySelector(".card");
-      if (nextCard) {
-        setFocus(nextCard);
+      // succeedPuzzleIfAppropriate() below) sets focus on its own. Only
+      // relevant for arrow-key sessions in the first place — see
+      // KAIOS_WIDTH_BREAKPOINT above — otherwise nothing was ever focused
+      // to begin with, and this would just draw an unasked-for halo.
+      if (window.innerWidth <= KAIOS_WIDTH_BREAKPOINT) {
+        let nextCard = document.querySelector(".card");
+        if (nextCard) {
+          setFocus(nextCard);
+        }
       }
       succeedPuzzleIfAppropriate();
       return;
@@ -588,6 +654,7 @@ function succeedPuzzleIfAppropriate() {
 
 function deselectAll() {
   Array.from(document.querySelectorAll("div.chosen")).forEach((x) => x.classList.remove("chosen"));
+  updateSoftkeys();
 }
 
 function gameOver(success) {
@@ -614,8 +681,13 @@ function gameOver(success) {
   }
   persistGameState();
   // setFocus() calls updateSoftkeys() itself (the center label depends on
-  // what's focused), so no separate call needed here.
-  setFocus(document.getElementById("results-content"));
+  // what's focused), so no separate call needed here. Same
+  // KAIOS_WIDTH_BREAKPOINT gating as getThePuzzle()/checkGuess() — clicking
+  // to share (wireResultsContentClick()) is unaffected either way, that's
+  // a plain click listener, not focus-driven.
+  if (window.innerWidth <= KAIOS_WIDTH_BREAKPOINT) {
+    setFocus(document.getElementById("results-content"));
+  }
 }
 
 function drawAttempt(attempt) {
@@ -661,8 +733,23 @@ function shuffleTiles() {
   }
 }
 
-function setDate(event) {
-  let requested = event.target.value;
+// Value-based so it's safe to call from several redundant listeners (see
+// wireDatePickerChangeDetection() below) without knowing which one actually
+// fired — real KaiOS hardware (3.1 and 4.0 both) apparently doesn't
+// reliably dispatch "change" back to this input once its native full-screen
+// date picker closes, unlike desktop's small inline dropdown. The early
+// return here is what makes that safe: whichever listener notices the
+// value change first handles it, and any others that also fire for the
+// same value are simply no-ops instead of re-fetching.
+function applyDatePickerChange(requested) {
+  // previousDatePickerValue is still undefined for the brief window before
+  // init() finishes its own initial setDate()-equivalent — e.g. window's
+  // "focus" can genuinely fire during a normal page load, which would
+  // otherwise race a spurious fetch in ahead of (and immediately clobbered
+  // by) init()'s own first getThePuzzle() call.
+  if (previousDatePickerValue === undefined || requested === previousDatePickerValue) {
+    return;
+  }
   if (loading) {
     datePicker.value = previousDatePickerValue;
     return;
@@ -675,6 +762,24 @@ function setDate(event) {
   previousDatePickerValue = requested;
   clearThePuzzle();
   getThePuzzle();
+}
+
+function setDate(event) {
+  applyDatePickerChange(event.target.value);
+}
+
+// Belt-and-suspenders for the "change never fires" real-hardware issue
+// above: "input"/"blur" on the field itself, plus a page-level "focus"
+// (covers the picker being a full-screen overlay that swaps away from and
+// back to the page entirely, rather than a lightweight inline dropdown —
+// in that case the input may never itself receive a conventional
+// focus/blur cycle at all). applyDatePickerChange()'s own dedup guard
+// keeps this harmless no matter how many of these end up firing for the
+// same actual change.
+function wireDatePickerChangeDetection() {
+  datePicker.addEventListener("input", () => applyDatePickerChange(datePicker.value));
+  datePicker.addEventListener("blur", () => applyDatePickerChange(datePicker.value));
+  window.addEventListener("focus", () => applyDatePickerChange(datePicker.value));
 }
 
 // --- KaiOS D-pad navigation + softkey bar -----------------------------
@@ -748,7 +853,31 @@ function setFocus(el) {
     el.setAttribute("tabindex", "-1");
   }
   el.focus();
-  scrollToVisible(el);
+  // Landing anywhere inside the puzzle area (a tile, #answers, etc.) tries
+  // to bring the *whole* game-div into view first, not just the newly-
+  // focused element — otherwise navigating in from the date picker above or
+  // the Settings link below can leave you looking at an oddly-cropped view
+  // (e.g. the chances row scrolled out of frame) even though the focused
+  // tile itself is technically visible. Same scrollToVisible() logic
+  // either way, just called against a bigger target first. The plain
+  // scrollToVisible(el) still always runs after — a no-op in the common
+  // case (already in view from the call above), but it's what guarantees
+  // the actually-focused element stays visible on the rare screen where
+  // game-div itself is taller than the viewport and the two calls disagree.
+  if (gameDiv.contains(el)) {
+    scrollToVisible(gameDiv);
+  } else {
+    scrollToVisible(el);
+  }
+  if (hasParentClass(el, 'card')) {
+    softKeyBar.style.position = 'absolute';
+    softKeyBar.style.bottom = '';
+    softKeyBar.style.top = '320px';
+  } else {
+    softKeyBar.style.position = 'fixed';
+    softKeyBar.style.bottom = '0';
+    softKeyBar.style.top = '';
+  }
   // The softkey center label depends on what's currently focused (e.g.
   // "Share" only while #results-content is selected) — keep it in sync
   // every time focus moves, not just when gameEnded flips.
@@ -936,6 +1065,9 @@ function updateSoftkeys() {
   let onShareableAnswers = id === "answers" && SHARE_ANSWERS_ENABLED;
   let onSettingsConfirm = settingsModalOpen && settingsModalConfirm.style.display !== "none";
   let onSettingsMain = settingsModalOpen && !onSettingsConfirm;
+  // Only meaningful in the final "else" branch below, but always cleared up
+  // front so it can't linger from a previous focus target.
+  right.classList.remove("softkey-disabled");
 
   if (id === "wrap-date-picker") {
     left.textContent = "";
@@ -969,6 +1101,13 @@ function updateSoftkeys() {
     left.textContent = gameEnded ? "" : "Deselect All";
     center.textContent = gameEnded ? "" : "Select";
     right.textContent = gameEnded ? "" : "Guess";
+    // checkGuessCallback() already no-ops with fewer than 4 chosen -- this
+    // just makes that visible up front instead of the softkey looking live
+    // and silently doing nothing when pressed.
+    let chosenCount = document.querySelectorAll("div.chosen").length;
+    if (!gameEnded && chosenCount < 4) {
+      right.classList.add("softkey-disabled");
+    }
   }
 }
 
@@ -981,6 +1120,25 @@ function updateSoftkeys() {
 // is what actually triggers KaiOS's full-screen date picker on Gecko.
 function wireDatePickerWrapper() {
   document.getElementById("wrap-date-picker").addEventListener("click", () => datePicker.focus());
+}
+
+// Opens in a new tab/window instead of navigating the puzzle away entirely
+// — works on desktop and iOS Safari since this only ever runs synchronously
+// inside a real click (mouse/touch, or interact()'s el.click() from a
+// physical D-pad Enter press in handleKeydown below — both count as "user
+// activation" the whole way through, which is what keeps window.open from
+// being popup-blocked). KaiOS's feature-phone browser has no real concept
+// of multiple windows/tabs though, so window.open()'s actual behavior
+// there is unconfirmed — if it's unsupported or returns null, this falls
+// through to the anchor's own normal href navigation instead (the previous
+// behavior), rather than silently doing nothing.
+function wireSubmitGroupLink() {
+  document.getElementById("submit-group-anchor").addEventListener("click", (event) => {
+    let newWindow = window.open(event.currentTarget.href, "_blank");
+    if (newWindow) {
+      event.preventDefault();
+    }
+  });
 }
 
 // Named so both the physical-key handling in handleKeydown below and the
@@ -1110,8 +1268,28 @@ const KAIADS_APP = "fourplay";
 // publisher dashboard; until then onerror below just means no ad shows.
 const KAIADS_SLOT = "bottombar";
 
+// Shown immediately every time displayAd() runs, and left up if the real
+// ad never loads (onerror, or getKaiAd not even defined yet) — real KaiAds
+// fill reportedly doesn't work on a test device before the app's actually
+// live in the store, so without this the ad slot would just sit blank
+// indefinitely during that whole pre-release stretch. Carries the exact
+// same nav-selectable-ad class/sizing a real ad gets (see selectables()
+// above and the CSS), so it's still useful as a layout check — just no
+// click action or link, purely visual (img/placeholder-ad.png).
+function showAdPlaceholder() {
+  let el = document.createElement("div");
+  el.className = "nav-selectable-ad";
+  el.setAttribute("tabindex", "-1");
+  let img = document.createElement("img");
+  img.src = "img/placeholder-ad.png";
+  img.alt = "";
+  el.appendChild(img);
+  document.getElementById("ad-container").appendChild(el);
+}
+
 function displayAd() {
   Array.from(document.getElementsByClassName("nav-selectable-ad")).forEach((el) => el.remove());
+  showAdPlaceholder();
   if (typeof getKaiAd !== "function") {
     return;
   }
@@ -1125,9 +1303,14 @@ function displayAd() {
     container: document.getElementById("ad-container"),
     onerror: function () {
       // Best-effort, same posture as submitResult()'s fire-and-forget ping
-      // above — a missing/failed ad must never affect the game.
+      // above — a missing/failed ad must never affect the game. The
+      // placeholder shown at the top of displayAd() just stays up.
     },
     onready: function (ad) {
+      // A real ad is ready — swap the placeholder out so only the real one
+      // shows (both carry the same class, so this is the same cleanup
+      // displayAd() does on every call, not placeholder-specific).
+      Array.from(document.getElementsByClassName("nav-selectable-ad")).forEach((el) => el.remove());
       ad.call("display", {
         // KaiOS apps own their own D-pad navigation — navClass is the class
         // the SDK applies to the element it creates, unioned into
@@ -1144,6 +1327,8 @@ function displayAd() {
 // --- Boot --------------------------------------------------------------
 computeContrastColors();
 wireDatePickerWrapper();
+wireSubmitGroupLink();
+wireDatePickerChangeDetection();
 wireResultsContentClick();
 wireAnswersClick();
 wireSettingsModal();

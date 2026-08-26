@@ -1,8 +1,10 @@
 BUCKET=daniel-townsend-fourplay
 
-rm -rf css js
+rm -rf css js img assets
 cp -r ../frontend/css .
 cp -r ../frontend/js .
+cp -r ../frontend/img .
+cp -r ../frontend/assets .
 cp ../frontend/index.html .
 cp ../frontend/admin.html .
 

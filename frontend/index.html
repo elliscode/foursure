@@ -4,13 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Fourplay</title>
-    <link rel="stylesheet" href="css/stylesheet.css?v=3.0.0" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Libre+Franklin:ital,wght@0,400;0,700;0,800;1,400&display=swap"
-      rel="stylesheet"
-    />
+    <link rel="stylesheet" href="css/stylesheet.css?v=3.0.15" />
   </head>
   <body>
     <div id="results" class="panel">
@@ -41,7 +35,30 @@
       </div>
 
       <div class="game-div">
-        <div id="puzzle"><div id="answers"></div></div>
+        <!-- Static placeholder tiles, painted before puzzle.js even runs --
+             showPuzzleSkeleton() in puzzle.js leaves these alone if they're
+             already here and only generates its own once these are gone
+             (removePuzzleSkeleton() clears them the instant the real
+             puzzle's fetched, same as it does its own JS-built ones). -->
+        <div id="puzzle">
+          <div id="answers"></div>
+          <div class="skeleton-tile"><div></div></div>
+          <div class="skeleton-tile"><div></div></div>
+          <div class="skeleton-tile"><div></div></div>
+          <div class="skeleton-tile"><div></div></div>
+          <div class="skeleton-tile"><div></div></div>
+          <div class="skeleton-tile"><div></div></div>
+          <div class="skeleton-tile"><div></div></div>
+          <div class="skeleton-tile"><div></div></div>
+          <div class="skeleton-tile"><div></div></div>
+          <div class="skeleton-tile"><div></div></div>
+          <div class="skeleton-tile"><div></div></div>
+          <div class="skeleton-tile"><div></div></div>
+          <div class="skeleton-tile"><div></div></div>
+          <div class="skeleton-tile"><div></div></div>
+          <div class="skeleton-tile"><div></div></div>
+          <div class="skeleton-tile"><div></div></div>
+        </div>
 
         <div id="guesses"><span>Chances:</span><div id="guess-spot"></div></div>
 
@@ -52,7 +69,7 @@
         </div>
       </div>
 
-      <p id="submit-group-link"><a href="submit-group.html" id="submit-group-anchor" nav-selectable="true">Have four words that belong together? Submit a group &rarr;</a></p>
+      <p id="submit-group-link"><a href="https://fourplay.elliscode.com/submit-group.html" id="submit-group-anchor" nav-selectable="true">Have four words that belong together? Submit a group &rarr;</a></p>
       <p id="settings-link"><button type="button" id="settings-anchor" nav-selectable="true">Settings</button></p>
     </div>
 
@@ -76,7 +93,7 @@
           <h2>Settings</h2>
           <!-- Hard-coded — bump alongside manifest.webmanifest's
                b2g_features.version when releasing. -->
-          <p>Version <span id="app-version">3.0.0</span></p>
+          <p>Version <span id="app-version">3.0.15</span></p>
           <button type="button" nav-selectable="true" id="settings-clear-data">Clear All Data</button>
           <button type="button" nav-selectable="true" id="settings-close">Close</button>
         </div>
@@ -89,6 +106,6 @@
     </div>
 
     <script src="js/kaiads.v5.min.js"></script>
-    <script src="js/puzzle.js?v=3.0.0"></script>
+    <script src="js/puzzle.js?v=3.0.15"></script>
   </body>
 </html>

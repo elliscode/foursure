@@ -86,6 +86,7 @@ The repo ships with `fourplay.elliscode.com` / `api.fourplay.elliscode.com` as p
 | `frontend/admin.html` | `BASE_URL` |
 | `s3/submit-group.html` | `API_HOST` |
 | `frontend/js/puzzle.js` | `SITE_URL` |
+| `frontend/index.html` | `#submit-group-anchor`'s `href` (hardcoded absolute — the packaged KaiOS app has no `submit-group.html` of its own to resolve a relative link against) |
 | `s3/release.sh` | `BUCKET` |
 | `backend/release.sh` | `--function-name=` |
 
@@ -105,6 +106,14 @@ A brand-new deployment has **zero** groups and **zero** constructed puzzles in D
    ```
 6. Confirm it worked: check that `puzzles/{tomorrow's date}.json` now exists in the S3 bucket with an `id` field, and that the puzzle you built in step 4 now shows up under the "used" filter in the Build Puzzle tab instead of "unused". The site will show that puzzle starting the date it's for — if you want to play it immediately rather than waiting, browse via the `?date=` URL param, or just wait a day.
 7. (Optional, any time after this) Set `firstPuzzleDate` in `puzzles/manifest.json` once you've decided the real first day of puzzle history — this bounds how far back the calendar picker will let people go (any date it *does* let you pick will always load something, real or a default fallback, so this is purely a UI floor, not a content gate). `s3/puzzles/manifest.json` in the repo ships with it blank (`{"firstPuzzleDate": ""}`, meaning no floor); upload your edited copy to `puzzles/manifest.json` in the bucket directly — like the daily puzzle files, `s3/release.sh` never touches anything under `puzzles/`, so this is a manual, no-code-change edit you can make whenever.
+
+### Undoing a manual test run
+
+Running the test event in step 5 above (or invoking the Lambda manually at any other point) publishes for real — `generate_puzzle()` doesn't know the difference between a real scheduled firing and a manual one. If you want to roll one back (e.g. you were just testing on real infrastructure and don't want it to count), `generate_puzzle()` touches three places, and undoing it cleanly means reverting all three:
+
+1. **Delete the S3 file** it wrote: `puzzles/{that date}.json`.
+2. **On the puzzle record** (`key1="puzzle"`) it published — find it via `admin.html`'s Build Puzzle tab under the "used" filter, or by matching its `puzzleDate` to the date you're undoing — `REMOVE used, puzzleDate, usedAt`. Setting `used` to `false` instead of removing it would also work functionally (the "unused" query filter in `puzzle.py` accepts either `attribute_not_exists(used)` or `used = false`), but `REMOVE` matches how the rest of the codebase reverts this kind of flag (see `delete_puzzle_route`'s `REMOVE used_in_puzzle` on groups) and avoids leaving a stray `usedAt`/`puzzleDate` behind on a record that's supposed to look never-published.
+3. **On each of that puzzle's 4 group records** (`key1="group"`, their `groupId`s are right there in the puzzle record's `groups` list) — `REMOVE puzzleDate`. This one's purely informational (nothing in the code ever reads a group's `puzzleDate` back, so leaving it stale won't break anything functionally), but it's misleading to leave behind if you're trying to fully roll back — those 4 groups would still claim they ran on a date they didn't. Their `used_in_puzzle` flag is untouched by any of this either way — that was set back at construction time (`create_puzzle_route`), not by `generate_puzzle()`.
 
 ---
 

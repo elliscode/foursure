@@ -4,13 +4,27 @@
 <meta charset="utf-8" />
 <title>Submit a Group — Fourplay</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link
-  href="https://fonts.googleapis.com/css2?family=Libre+Franklin:ital,wght@0,400;0,700;0,800;1,400&display=swap"
-  rel="stylesheet"
-/>
 <style>
+  /* Self-hosted, same file frontend/index.html uses — see that file's
+     stylesheet.css for why (one variable font backing every weight, no
+     external Google Fonts dependency). Only the two weights this page
+     actually renders (400 body text, 700 for h1's implicit bold — no
+     explicit font-weight is set anywhere here). */
+  @font-face {
+    font-family: "Libre Franklin";
+    src: url("assets/fonts/LibreFranklin-Variable.woff2") format("woff2");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Libre Franklin";
+    src: url("assets/fonts/LibreFranklin-Variable.woff2") format("woff2");
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+  }
+
   :root {
     --chosen-bg: #3a3a34;
   }
@@ -28,11 +42,6 @@
   .panel {
     width: 100%;
     max-width: 480px;
-  }
-  a.back-link {
-    color: #0474ba;
-    text-decoration: none;
-    font-size: 0.9rem;
   }
   h1 {
     font-size: 1.7rem;
@@ -89,7 +98,6 @@
 </head>
 <body>
   <div class="panel">
-    <a class="back-link" href="index.html">&larr; Back to today's puzzle</a>
     <h1>Submit a group</h1>
     <p class="tagline">
       Propose four words and the category connecting them — every submission is reviewed before it can appear in a

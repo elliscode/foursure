@@ -3,11 +3,52 @@
    hexes, but laid out with normal responsive CSS (grid + relative units)
    instead of vw-locked dumbphone sizing. */
 
+/* Self-hosted instead of the Google Fonts CDN — one less external runtime
+   dependency, same as everything else this app doesn't rely on at runtime.
+   One variable-font file (confirmed via its fvar table: a wght axis,
+   100-900, with named instances at exactly the weights used below) backs
+   all four @font-face declarations — this is the exact same file Google's
+   own CDN was already serving for this family/weight combination, just
+   fetched once and committed instead of requested live, so rendering is
+   unchanged. Gecko 84 (the KaiOS 3 target) has supported variable fonts
+   since Firefox 62, well before that. Only the "latin" unicode subset is
+   included — cyrillic/vietnamese/etc. aren't needed for an English-only
+   word game. */
+@font-face {
+  font-family: "Libre Franklin";
+  src: url("../assets/fonts/LibreFranklin-Variable.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Libre Franklin";
+  src: url("../assets/fonts/LibreFranklin-Variable.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Libre Franklin";
+  src: url("../assets/fonts/LibreFranklin-Variable.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Libre Franklin";
+  src: url("../assets/fonts/LibreFranklin-Variable.woff2") format("woff2");
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --color-bg: #ffffff;
   --color-text: #1a1a1a;
   --tile-bg: #efefe6;
   --tile-text: #1a1a1a;
+  --skeleton-pulse-bg: #e2e2d6;
   --chosen-bg: #3a3a34;
   --toast-bg: #3a3a34;
   --difficulty-4: #c10000;
@@ -87,6 +128,13 @@ h1 {
   border-radius: 8px;
 }
 
+/* Outward, not inset like .card below — .input-wrap has zero padding, and
+   its child (the native <input type="date">) renders its own opaque
+   background filling the box edge-to-edge, so an inset ring here would
+   paint entirely underneath it and never actually be visible (confirmed:
+   it wasn't). No confirmed overflow risk from this one on real hardware
+   either, unlike .card's last-column tile — it's centered in
+   #date-picker-row, not structurally flush against a container edge. */
 .input-wrap[nav-selected="true"] {
   box-shadow: 0 0 0 3px rgba(58, 58, 52, 0.4);
 }
@@ -226,20 +274,20 @@ h1 {
      WIDTH regardless of axis, so padding-top: 100% forces the height to
      match the width in any CSS engine back to ~2010. */
   position: relative;
+  width: min(calc(((100vw - 32px - 24px) / 4)), 134px);
+  height: min(calc(((100vw - 32px - 24px) / 4)), 134px);
 }
 
-.card::before {
-  content: "";
-  display: block;
-  padding-top: 100%;
+@media (max-width: 240px) {
+  .card {
+    width: calc((100vw - 8px - 6px) / 4);
+    height: calc((100vw - 8px - 6px) / 4);
+  }
 }
 
 .card > div {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  width:100%;
+  height:100%;
   border-radius: 8px;
   background-color: var(--tile-bg);
   color: var(--tile-text);
@@ -258,6 +306,42 @@ h1 {
   transition: background-color 0.1s ease;
 }
 
+/* Placeholder tiles shown while getThePuzzle() is fetching -- see
+   showPuzzleSkeleton() in puzzle.js. Same aspect-ratio/sizing trick as
+   .card above (deliberately not sharing its class -- code elsewhere
+   queries .card assuming every match is a real tile) so the grid holds its
+   4x4 shape with no layout jump once the real tiles replace these. */
+.skeleton-tile {
+  position: relative;
+  width: min(calc(((100vw - 32px - 24px) / 4)), 134px);
+  height: min(calc(((100vw - 32px - 24px) / 4)), 134px);
+}
+
+@media (max-width: 240px) {
+  .skeleton-tile {
+    width: calc((100vw - 8px - 6px) / 4);
+    height: calc((100vw - 8px - 6px) / 4);
+  }
+}
+
+.skeleton-tile > div {
+  width:100%;
+  height:100%;
+  border-radius: 8px;
+  background-color: var(--tile-bg);
+  animation: skeleton-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    background-color: var(--tile-bg);
+  }
+  50% {
+    background-color: var(--skeleton-pulse-bg);
+  }
+}
+
 .answer {
   grid-column: 1 / -1;
   /* Same height as a single tile. Container queries (cqw) aren't available
@@ -266,8 +350,14 @@ h1 {
      syncAnswerRowHeight() measures a live .card's rendered height and sets
      this custom property instead; the px fallback only matters for the
      brief instant before that JS runs. */
-  height: var(--tile-height, 134px);
+  height: min(calc(((100vw - 32px - 24px) / 4)), 134px);
   border-radius: 8px;
+}
+
+@media (max-width: 240px) {
+  .answer {
+    height: calc((100vw - 8px - 6px) / 4);
+  }
 }
 
 .answer > div {
@@ -367,10 +457,19 @@ h1 {
   outline: none;
 }
 
+/* box-shadow, not outline — outline doesn't render on real KaiOS hardware
+   for these two (confirmed on-device), unlike everywhere else in this file
+   that already uses box-shadow (.card, .input-wrap, .nav-selectable-ad,
+   the settings modal's buttons), which does. */
+/* Still outward, unlike .card/.input-wrap/etc below — these two are
+   zero-padding inline text links (see #settings-anchor's padding: 0), so
+   an inset ring here would sit right on top of the text glyphs instead of
+   around them. Lower overflow risk than .card anyway: centered text in a
+   full-width <p>, not structurally flush against a container edge the way
+   the grid's last column always is. */
 #submit-group-link a[nav-selected="true"],
 #settings-anchor[nav-selected="true"] {
-  outline: 3px solid rgba(58, 58, 52, 0.4);
-  outline-offset: 2px;
+  box-shadow: 0 0 0 3px rgba(58, 58, 52, 0.4);
   border-radius: 4px;
 }
 
@@ -565,8 +664,6 @@ h1 {
    getKaiAd(). */
 .nav-selectable-ad {
   width: 240px;
-  max-width: 240px;
-  min-width: 240px;
   height: 60px;
   max-height: 60px;
   min-height: 60px;
@@ -576,6 +673,15 @@ h1 {
 
 .nav-selectable-ad[nav-selected="true"] {
   box-shadow: 0 0 0 3px rgba(58, 58, 52, 0.5);
+}
+
+/* showAdPlaceholder()'s img (see puzzle.js) — fills the same 240x60 box a
+   real ad would. */
+.nav-selectable-ad img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 /* The ad's fixed 240px width exactly matches a real KaiOS screen, but
@@ -606,7 +712,7 @@ h1 {
   position: fixed;
   bottom: 0;
   left: 0;
-  right: 0;
+  width: 240px;
   height: 30px;
   background: #fff;
   border-top: 1px solid #ccc;
@@ -640,6 +746,14 @@ h1 {
 
 #sk-right {
   text-align: right;
+}
+
+/* "Guess" while fewer than 4 tiles are chosen -- see updateSoftkeys() in
+   puzzle.js. Not just a color change: pointer-events:none too, since
+   #sk-right is otherwise clickable (see wireSoftkeyClicks()). */
+#sk-right.softkey-disabled {
+  color: #999;
+  pointer-events: none;
 }
 
 #sk-center {
@@ -754,19 +868,25 @@ h1 {
   }
 }
 
-/* Submit-a-group and Settings are both distractions from today's puzzle on
-   a screen this small — only show them once the puzzle's actually done
-   (win or lose). document.body.classList "game-ended" is kept in sync with
-   the gameEnded variable by puzzle.js's clearThePuzzle()/gameOver(). */
+/* Submit-a-group is a distraction from today's puzzle on a screen this
+   small — only show it once the puzzle's actually done (win or lose).
+   Settings and the ad banner stay visible throughout — unlike submitting a
+   group, neither competes for attention with actively playing the puzzle.
+   document.body.classList "game-ended" is kept in sync with the gameEnded
+   variable by puzzle.js's clearThePuzzle()/gameOver(). Opening the link
+   itself is handled in JS now (see wireSubmitGroupLink() in puzzle.js) so
+   it doesn't navigate away from an in-progress/just-finished puzzle. */
 @media (max-width: 240px) {
-  #submit-group-link,
-  #settings-link {
+  #submit-group-link {
     display: none;
   }
 
-  body.game-ended #submit-group-link,
-  body.game-ended #settings-link {
+  body.game-ended #submit-group-link {
     display: block;
+  }
+
+  #ad-container {
+    margin: 0;
   }
 }
 

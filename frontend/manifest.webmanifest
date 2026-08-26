@@ -1,7 +1,7 @@
 {
   "id": "fourplay",
   "name": "Fourplay",
-  "description": "Fourplay is a daily word puzzle. Find the four groups of four connected words. Groups are proposed by anyone, moderated by an admin, and curated into puzzles each day from the approved pool of groups. No accounts required — game progress is stored on your device.",
+  "description": "New puzzles daily! Given sixteen words, find the four groups of four that belong together. Submit your own groups and see them featured in future puzzles! Share your score over SMS with friends and compete to be the smartest every day!",
   "lang": "en-US",
   "theme_color": "#b0b0ae",
   "orientation": "natural",
@@ -22,7 +22,7 @@
     "subtitle": "Find connections between words",
     "type": "web",
     "permissions": {},
-    "version": "3.0.0",
+    "version": "3.0.15",
     "developer": {
         "name": "elliscode",
         "url": "http://www.elliscode.com"
