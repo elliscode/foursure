@@ -5,6 +5,10 @@ __pycache__/
 # backend/release.sh output
 backend/*.zip
 
+# backend/fourplay-blog-generator/release.sh's extracted-dependencies working
+# directory (docker cp'd out of the build container before zipping)
+backend/fourplay-blog-generator/dimg/
+
 # s3/release.sh copies these in from frontend/ on every run — not source of
 # truth here, same convention as kaios-calorie-counter's s3/.gitignore rules
 s3/index.html

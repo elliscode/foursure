@@ -89,6 +89,33 @@ The repo ships with `fourplay.elliscode.com` / `api.fourplay.elliscode.com` as p
 | `frontend/index.html` | `#submit-group-anchor`'s `href` (hardcoded absolute — the packaged KaiOS app has no `submit-group.html` of its own to resolve a relative link against) |
 | `s3/release.sh` | `BUCKET` |
 | `backend/release.sh` | `--function-name=` |
+| `backend/fourplay-blog-generator/release.sh` | `FUNCTION_NAME` |
+
+### 9. Lambda function — blog generator
+
+A second, independent Lambda from step 4 — `fourplay-blog-generator` finds the most recent puzzle date missing a blog post, generates the copy via Gemini, publishes `blog/{date}.html`, and regenerates `sitemap.xml` at the bucket root on every run. `s3/robots.txt` (checked into the repo, deployed by the normal frontend release script — see Part 3) points crawlers at that sitemap. See `backend/fourplay-blog-generator/README.md` for what it does in detail.
+
+- Create a function (e.g. `fourplay-blog-generator`), **Python 3.14** runtime, handler `lambda_function.lambda_handler`, **architecture: arm64** — `release.sh` builds its Docker image with `--platform linux/arm64` explicitly, and the two have to match or the deploy fails at invoke time with an exec-format error.
+- **Timeout**: raise it from the 3-second default — this Lambda makes 5 sequential Gemini calls per run. 90 seconds is a reasonable starting point.
+- **Memory**: bump to 256MB (default 128MB is probably fine for boto3 + google-genai, but this is a once-a-night invocation, cheap to over-provision for safety margin).
+- Don't set the code yet, same as step 4 — that comes from `backend/fourplay-blog-generator/release.sh` in Part 3.
+- Attach its own IAM role — notably narrower than step 4's, no DynamoDB or SQS at all:
+  - `s3:ListBucket` on `arn:aws:s3:::<your-bucket-name>` — to list the `puzzles/` and `blog/` prefixes
+  - `s3:GetObject` on `arn:aws:s3:::<your-bucket-name>/puzzles/*` (the day's puzzle) and `arn:aws:s3:::<your-bucket-name>/blog/*` (the template)
+  - `s3:PutObject` on `arn:aws:s3:::<your-bucket-name>/blog/*` (the generated post) and, separately, `arn:aws:s3:::<your-bucket-name>/sitemap.xml` (that one exact key, not a wildcard on the bucket root — this is the only thing this Lambda ever writes outside `blog/*`)
+
+### 10. Lambda environment variables — blog generator
+
+| Variable | Set it to |
+|---|---|
+| `PUZZLE_BUCKET_NAME` | The same bucket name from step 2 — this Lambda reuses it, no new bucket |
+| `GEMINI_API_KEY` | Your Gemini API key — plain env var, same convention as `SMS_SQS_QUEUE_URL` above (no Secrets Manager anywhere in this project) |
+
+### 11. EventBridge scheduled rule — blog generator
+
+- Create a **separate** scheduled rule from step 7's (this one targets `fourplay-blog-generator`, not `fourplay-api` — two independent Lambdas, two independent rules).
+- Schedule expression `cron(15 23 * * ? *)` — 23:15 UTC nightly, 15 minutes after step 7's puzzle-publish rule fires, so that night's puzzle JSON reliably exists in the bucket before this Lambda looks for it.
+- No input transformer needed — an empty event is enough, this Lambda has no other trigger to distinguish it from.
 
 ---
 
@@ -115,6 +142,10 @@ Running the test event in step 5 above (or invoking the Lambda manually at any o
 2. **On the puzzle record** (`key1="puzzle"`) it published — find it via `admin.html`'s Build Puzzle tab under the "used" filter, or by matching its `puzzleDate` to the date you're undoing — `REMOVE used, puzzleDate, usedAt`. Setting `used` to `false` instead of removing it would also work functionally (the "unused" query filter in `puzzle.py` accepts either `attribute_not_exists(used)` or `used = false`), but `REMOVE` matches how the rest of the codebase reverts this kind of flag (see `delete_puzzle_route`'s `REMOVE used_in_puzzle` on groups) and avoids leaving a stray `usedAt`/`puzzleDate` behind on a record that's supposed to look never-published.
 3. **On each of that puzzle's 4 group records** (`key1="group"`, their `groupId`s are right there in the puzzle record's `groups` list) — `REMOVE puzzleDate`. This one's purely informational (nothing in the code ever reads a group's `puzzleDate` back, so leaving it stale won't break anything functionally), but it's misleading to leave behind if you're trying to fully roll back — those 4 groups would still claim they ran on a date they didn't. Their `used_in_puzzle` flag is untouched by any of this either way — that was set back at construction time (`create_puzzle_route`), not by `generate_puzzle()`.
 
+### Backfilling an older missing blog post
+
+`fourplay-blog-generator` always picks the **most recent** puzzle date missing a post, not the oldest — see the comment on `_most_recent_missing_date()` in `backend/fourplay-blog-generator/lambda_function.py`. In normal nightly operation those are the same date anyway, but if the Lambda ever fails for a few days in a row (bad API key, quota exhaustion, etc.), only the newest gap gets backfilled automatically once it starts working again — older gaps stay missing forever unless you do something about them. To force one specific older date: temporarily move every `blog/*.html` file *newer* than that date out of the bucket (e.g. down to a local backup), manually invoke the Lambda with an empty test event (`{}`) so it generates the now-most-recent gap, then move the newer files back.
+
 ---
 
 ## Part 3 — Every time you deploy a change
@@ -128,7 +159,7 @@ cd s3
 sh release.sh
 ```
 
-Copies `frontend/`'s `css/`, `js/`, `index.html`, `admin.html` into `s3/`, then syncs the whole `s3/` directory up to the bucket (`--delete`, so anything removed locally gets removed from the bucket too) — **except** `puzzles/*`, which is excluded on purpose since that's written directly by the Lambda, not by this script.
+Copies `frontend/`'s `css/`, `js/`, `index.html`, `admin.html` into `s3/`, then syncs the whole `s3/` directory up to the bucket (`--delete`, so anything removed locally gets removed from the bucket too) — **except** `puzzles/*` and `blog/*`, both excluded on purpose since those are written directly by the two Lambdas, not by this script. (Editing `s3/blog/template.html` locally still needs a manual `aws s3 cp s3/blog/template.html s3://$BUCKET/blog/template.html` push, since the exclude means this sync won't pick it up.)
 
 If you're using CloudFront (step 3 above), it has its own cache — you likely want to also invalidate it after a deploy so changes show up immediately instead of waiting for the cache to expire:
 ```bash
@@ -143,6 +174,15 @@ sh release.sh
 ```
 
 Zips `backend/lambda/` and pushes it straight to the Lambda function via `aws lambda update-function-code`. No build step, no dependency install — it's stdlib + boto3 only.
+
+### Backend blog generator (`backend/fourplay-blog-generator/`)
+
+```bash
+cd backend/fourplay-blog-generator
+sh release.sh
+```
+
+Unlike the plain-zip `backend/release.sh` above, this one builds a Docker image first (needed for its one third-party dependency, `google-genai`), extracts the installed dependencies out of a throwaway container, zips them alongside `lambda_function.py`, then pushes that via `aws lambda update-function-code` — see `backend/fourplay-blog-generator/README.md` for the full breakdown.
 
 ### KaiOS app package (`frontend/`)
 

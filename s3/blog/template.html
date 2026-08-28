@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<!--
+  Real template now -- see backend/fourplay-blog-generator/lambda_function.py,
+  which fetches this file at runtime and fills every dollar-brace placeholder
+  below via Python's stdlib string.Template, once per puzzle date missing a
+  post. Edits here take effect immediately (no Lambda redeploy needed), but
+  don't sync up through the normal frontend release script -- s3/release.sh
+  deliberately excludes blog/* (see its own comment), since that's also
+  where the Lambda writes generated posts. Push template changes with a
+  direct `aws s3 cp` to the bucket's blog/template.html key instead.
+  Note for maintainers: rendering is strict, so nowhere in this file
+  (including this comment) should the currency-sign character appear
+  outside the real dollar-brace placeholders below -- an unescaped stray
+  one anywhere else breaks rendering at generation time.
+-->
+<title>${display_date} Puzzle Breakdown &mdash; Fourplay</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  /* Self-hosted, same file frontend/index.html uses &mdash; see that file's
+     stylesheet.css for why (one variable font backing every weight, no
+     external Google Fonts dependency). Weights actually rendered here: 400
+     (body text), 700 (h2), 800 (h1, masthead, group-words, tier-badge). */
+  @font-face {
+    font-family: "Libre Franklin";
+    src: url("../assets/fonts/LibreFranklin-Variable.woff2") format("woff2");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Libre Franklin";
+    src: url("../assets/fonts/LibreFranklin-Variable.woff2") format("woff2");
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Libre Franklin";
+    src: url("../assets/fonts/LibreFranklin-Variable.woff2") format("woff2");
+    font-weight: 800;
+    font-style: normal;
+    font-display: swap;
+  }
+
+  /* Same difficulty palette as frontend/css/stylesheet.css's --difficulty-1..4
+     (green -> yellow -> orange -> red, easiest to hardest) -- kept in sync
+     manually, same as the ad script further down. */
+  :root {
+    --difficulty-1: #00b000;
+    --difficulty-2: #fddb00;
+    --difficulty-3: #ff8a05;
+    --difficulty-4: #c10000;
+    --ink: #1a1a1a;
+    --accent-dark: #3a3a34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 40px 16px 64px;
+    font-family: "Libre Franklin", -apple-system, BlinkMacSystemFont, sans-serif;
+    color: var(--ink);
+    background: #faf9f5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  article {
+    width: 100%;
+    max-width: 640px;
+    background: #fff;
+    border-radius: 16px;
+    padding: 32px 28px 40px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+  }
+  a.back-link {
+    color: #0474ba;
+    text-decoration: none;
+    font-size: 0.9rem;
+  }
+  .masthead {
+    margin: 20px 0 4px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.15em;
+    color: var(--accent-dark);
+  }
+  h1 {
+    font-size: 2.1rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    margin: 0 0 4px;
+  }
+  .post-date {
+    color: #777;
+    margin: 0 0 32px;
+    font-size: 0.95rem;
+  }
+  h2 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin: 0 0 8px;
+  }
+  .group-section {
+    border-radius: 14px;
+    padding: 18px 22px;
+    margin-bottom: 18px;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  }
+  .group-section p {
+    margin: 8px 0 0;
+    line-height: 1.5;
+  }
+  .tier-badge {
+    display: inline-block;
+    background: rgba(255, 255, 255, 0.25);
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .group-words {
+    font-weight: 800;
+    letter-spacing: 0.03em;
+  }
+  .difficulty-1 { background: var(--difficulty-1); color: black; }
+  .difficulty-2 { background: var(--difficulty-2); color: black; }
+  .difficulty-3 { background: var(--difficulty-3); color: black; }
+  .difficulty-4 { background: var(--difficulty-4); color: white; }
+  .why-section {
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid #e5e5e0;
+  }
+  p {
+    line-height: 1.6;
+  }
+  /* Outside <article> -- its own element, not part of the post card. The
+     label is a real sibling, not #ad-container::before content, so it
+     can't contribute to #ad-container's own box (see below). */
+  .ad-wrap {
+    margin-top: 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  .ad-label {
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #999;
+  }
+  /* Exactly the 240x60 KaiAds requests (see the getKaiAd() call below) --
+     this element is handed to the SDK directly as its container, so its
+     box has to be exactly that size, not just roughly sized to fit. */
+  #ad-container {
+    width: 240px;
+    height: 60px;
+    overflow: hidden;
+  }
+  .nav-selectable-ad,
+  .nav-selectable-ad img {
+    width: 100%;
+    height: 100%;
+  }
+  .nav-selectable-ad img {
+    object-fit: cover;
+    border-radius: 6px;
+  }
+  @media (max-width: 420px) {
+    h1 {
+      font-size: 1.6rem;
+    }
+  }
+</style>
+</head>
+<body>
+  <article>
+    <a class="back-link" href="../index.html">&larr; Back to today's puzzle</a>
+    <p class="masthead">FOURPLAY</p>
+    <h1>${display_date} Puzzle Breakdown</h1>
+    <p class="post-date">Four groups, four words each &mdash; here's the connections between today's words.</p>
+
+    <div class="group-section difficulty-1">
+      <span class="tier-badge">Easiest</span>
+      <h2>${group1_category}</h2>
+      <p class="group-words">${group1_words}</p>
+    </div>
+      <p>
+        ${group1_explanation}
+      </p>
+
+    <div class="group-section difficulty-2">
+      <span class="tier-badge">Trickier</span>
+      <h2>${group2_category}</h2>
+      <p class="group-words">${group2_words}</p>
+    </div>
+      <p>
+        ${group2_explanation}
+      </p>
+
+    <div class="group-section difficulty-3">
+      <span class="tier-badge">Harder</span>
+      <h2>${group3_category}</h2>
+      <p class="group-words">${group3_words}</p>
+    </div>
+      <p>
+        ${group3_explanation}
+      </p>
+
+    <div class="group-section difficulty-4">
+      <span class="tier-badge">Hardest</span>
+      <h2>${group4_category}</h2>
+      <p class="group-words">${group4_words}</p>
+    </div>
+    <p>
+      ${group4_explanation}
+    </p>
+
+    <div class="why-section">
+      <h2>Why these four groups</h2>
+      <p>
+        ${why_paragraph}
+      </p>
+    </div>
+  </article>
+
+  <div class="ad-wrap">
+    <span class="ad-label">Advertisement</span>
+    <div id="ad-container"></div>
+  </div>
+
+  <script src="../js/kaiads.v5.min.js"></script>
+  <script>
+    // Copied from displayAd()/showAdPlaceholder() in frontend/js/puzzle.js
+    // (not loaded via a shared file -- puzzle.js's own boot sequence assumes
+    // #puzzle/#date-picker/etc. exist and throws on null before it would
+    // ever reach this code, since this isn't the game page). Kept in sync
+    // manually with that file if the ad logic there ever changes shape.
+    // Asset paths adjusted one directory level down from here (blog/).
+    // No setInterval refresh here unlike puzzle.js's 300s one -- that's
+    // sized for a long-lived app session, not a much shorter blog visit.
+    const KAIADS_PUBLISHER = "91b81d86-37cf-4a2f-a895-111efa5b36bb";
+    const KAIADS_APP = "fourplay";
+    const KAIADS_SLOT = "bottombar";
+
+    function showAdPlaceholder() {
+      let el = document.createElement("div");
+      el.className = "nav-selectable-ad";
+      el.setAttribute("tabindex", "-1");
+      let img = document.createElement("img");
+      img.src = "../img/placeholder-ad.png";
+      img.alt = "";
+      el.appendChild(img);
+      document.getElementById("ad-container").appendChild(el);
+    }
+
+    function displayAd() {
+      Array.from(document.getElementsByClassName("nav-selectable-ad")).forEach((el) => el.remove());
+      showAdPlaceholder();
+      if (typeof getKaiAd !== "function") {
+        return;
+      }
+      getKaiAd({
+        publisher: KAIADS_PUBLISHER,
+        app: KAIADS_APP,
+        slot: KAIADS_SLOT,
+        h: 60,
+        w: 240,
+        container: document.getElementById("ad-container"),
+        onerror: function () {},
+        onready: function (ad) {
+          Array.from(document.getElementsByClassName("nav-selectable-ad")).forEach((el) => el.remove());
+          ad.call("display", {
+            tabindex: -1,
+            navClass: "nav-selectable-ad",
+            display: "block",
+          });
+        },
+      });
+    }
+
+    displayAd();
+  </script>
+</body>
+</html>
