@@ -1,12 +1,19 @@
 BUCKET=daniel-townsend-fourplay
 
-rm -rf css js img assets
+rm -rf css js assets
 cp -r ../frontend/css .
 cp -r ../frontend/js .
-cp -r ../frontend/img .
 cp -r ../frontend/assets .
 cp ../frontend/index.html .
 cp ../frontend/admin.html .
+
+# img/ isn't wiped-and-replaced like css/js/assets above -- unlike those,
+# it holds a file that only ever lives here (og-banner.png, the Open Graph
+# banner -- checked in directly under s3/img/ since it has no reason to
+# ship inside the KaiOS app bundle in frontend/). A plain rm -rf would
+# delete it locally with nothing to restore it from. Just refresh whatever
+# frontend/img/ actually has instead.
+cp ../frontend/img/*.png img/
 
 # puzzles/* is excluded from the sync entirely — those files are written
 # directly to the bucket by the Lambda's generate_puzzle() (see

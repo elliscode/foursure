@@ -225,6 +225,12 @@ def _render_post(date_str, groups, explanations, why_paragraph):
     mapping = {
         "display_date": html.escape(_display_date(date_str)),
         "why_paragraph": _gemini_text_to_html(why_paragraph),
+        # For the template's og:url/canonical link and article:published_time
+        # -- date_str is already the raw YYYY-MM-DD the post schema uses, and
+        # post_url is this post's one real permanent URL, computed the same
+        # way _list_blog_posts()/generate_blog_post() key it in S3.
+        "date_iso": date_str,
+        "post_url": html.escape(f"{SITE_URL}{BLOG_KEY_PREFIX}{date_str}.html"),
     }
     for i, (group, explanation) in enumerate(zip(groups, explanations), start=1):
         mapping[f"group{i}_category"] = html.escape(group["category"])

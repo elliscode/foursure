@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" prefix="og: https://ogp.me/ns# article: https://ogp.me/ns/article#">
 <head>
 <meta charset="utf-8" />
 <!--
@@ -17,7 +17,30 @@
   one anywhere else breaks rendering at generation time.
 -->
 <title>${display_date} Puzzle Breakdown &mdash; Fourplay</title>
+<link rel="icon" type="image/png" href="../assets/icons/kaios_112.png" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="Four groups, four words each -- see how today's Fourplay puzzle connects." />
+<!-- Open Graph / Twitter Card -- see frontend/index.html for the game
+     page's equivalent. og:image is the same absolute banner URL every
+     post uses (og-banner.png doesn't vary per-post, so it's hardcoded
+     rather than templated); the post_url and date_iso placeholders below
+     are supplied by _render_post() in lambda_function.py alongside the
+     rest of the mapping. -->
+<meta property="og:type" content="article" />
+<meta property="og:site_name" content="Fourplay" />
+<meta property="og:title" content="${display_date} Puzzle Breakdown" />
+<meta property="og:description" content="Four groups, four words each -- see how today's Fourplay puzzle connects." />
+<meta property="og:url" content="${post_url}" />
+<meta property="og:image" content="https://fourplay.elliscode.com/img/og-banner.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="650" />
+<meta property="og:image:alt" content="Fourplay -- a daily word puzzle" />
+<meta property="article:published_time" content="${date_iso}T00:00:00Z" />
+<link rel="canonical" href="${post_url}" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="${display_date} Puzzle Breakdown" />
+<meta name="twitter:description" content="Four groups, four words each -- see how today's Fourplay puzzle connects." />
+<meta name="twitter:image" content="https://fourplay.elliscode.com/img/og-banner.png" />
 <style>
   /* Self-hosted, same file frontend/index.html uses &mdash; see that file's
      stylesheet.css for why (one variable font backing every weight, no

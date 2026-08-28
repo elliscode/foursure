@@ -1,9 +1,31 @@
 <!DOCTYPE html>
-<html>
+<html prefix="og: https://ogp.me/ns#">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Fourplay</title>
+    <link rel="icon" type="image/png" href="assets/icons/kaios_112.png" />
+    <meta name="description" content="A daily word puzzle -- find the four hidden groups of four. A new Fourplay puzzle every day." />
+    <!-- Open Graph / Twitter Card -- see s3/blog/template.html for each
+         post's per-date equivalent. og:image needs an absolute URL per the
+         spec (unlike this file's other, relative asset paths). The banner
+         itself (s3/img/og-banner.png) is deliberately NOT in frontend/img/
+         -- it has no reason to ship inside the KaiOS app bundle, so it's
+         checked in directly under s3/img/ instead; see s3/release.sh's own
+         comment for how that survives its otherwise-full img/ refresh. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Fourplay" />
+    <meta property="og:title" content="Fourplay -- Find the Four Groups of Four" />
+    <meta property="og:description" content="A daily word puzzle -- find the four hidden groups of four. A new Fourplay puzzle every day." />
+    <meta property="og:url" content="https://fourplay.elliscode.com/" />
+    <meta property="og:image" content="https://fourplay.elliscode.com/img/og-banner.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="650" />
+    <meta property="og:image:alt" content="Fourplay -- a daily word puzzle" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Fourplay -- Find the Four Groups of Four" />
+    <meta name="twitter:description" content="A daily word puzzle -- find the four hidden groups of four. A new Fourplay puzzle every day." />
+    <meta name="twitter:image" content="https://fourplay.elliscode.com/img/og-banner.png" />
     <link rel="stylesheet" href="css/stylesheet.css?v=3.0.15" />
   </head>
   <body>
