@@ -121,6 +121,29 @@
     margin: 0 0 32px;
     font-size: 0.95rem;
   }
+  #stats-chart-wrap {
+    margin: 0 0 32px;
+  }
+  .stats-label {
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent-dark);
+    margin: 0 0 8px;
+  }
+  /* Fixed reserved height regardless of whether renderStatsChart() below
+     ends up drawing a real chart or the "NO DATA" placeholder -- avoids a
+     layout shift once the async fetch resolves, rather than the element
+     being invisible/collapsed until then. */
+  #stats-chart {
+  	height: min(219px, calc(((100vw - 86px) * 3) / 8));
+  }
+  #stats-chart svg {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
   h2 {
     font-size: 1.15rem;
     font-weight: 700;
@@ -132,6 +155,12 @@
     margin-bottom: 18px;
     color: #fff;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  }
+  /* Scoped to just the per-group heading, not the bare h2 selector above --
+     that one's also used by the "Why these four groups" summary heading,
+     which shouldn't get swept up in this. */
+  .group-section h2 {
+    text-transform: uppercase;
   }
   .group-section p {
     margin: 8px 0 0;
@@ -151,6 +180,7 @@
   .group-words {
     font-weight: 800;
     letter-spacing: 0.03em;
+    text-transform: uppercase;
   }
   .difficulty-1 { background: var(--difficulty-1); color: black; }
   .difficulty-2 { background: var(--difficulty-2); color: black; }
@@ -210,6 +240,11 @@
     <p class="masthead">FOURPLAY</p>
     <h1>${display_date} Puzzle Breakdown</h1>
     <p class="post-date">Four groups, four words each &mdash; here's the connections between today's words.</p>
+
+    <div id="stats-chart-wrap">
+      <p class="stats-label">How everyone did today</p>
+      <div id="stats-chart"></div>
+    </div>
 
     <div class="group-section difficulty-1">
       <span class="tier-badge">Easiest</span>
@@ -311,6 +346,111 @@
     }
 
     displayAd();
+  </script>
+  <script>
+    // Bar chart of that day's completion-score histogram, fetched live from
+    // fourplay-api's /completions -- never baked into this static page by
+    // fourplay-blog-generator, so it stays accurate as more people play
+    // after this post is generated. Own self-contained constants, same
+    // "don't share anything with frontend/js/puzzle.js" posture the ad
+    // script above already takes.
+    //
+    // Built entirely with string concatenation, deliberately never a JS
+    // template literal (backtick string) -- a dollar-brace expression
+    // written JS-side anywhere in this file collides with string.Template's
+    // own substitution syntax at generation time (see this file's very top
+    // comment). The one exception is the date placeholder a few lines down
+    // inside a plain double-quoted string, which IS an intentional Python
+    // substitution, resolved server-side before this script ever reaches a
+    // browser.
+    var API_HOST = "https://api.fourplay.elliscode.com";
+    // The only 12 scores a completed puzzle can ever actually produce (see
+    // _score_attempts() in backend/lambda/fourplay/results.py). 4, 5, and 6
+    // are all unreachable -- once 3 groups are correctly solved, only one
+    // group's 4 tiles remain on the board, so the next guess can't help
+    // but be correct too (checkGuessCallback() requires selecting exactly
+    // 4 tiles, and there's no other 4-tile combination left to pick). That
+    // means you can never be sitting at "3 correct" when a 4th wrong guess
+    // ends the game -- a loss only ever has 0, 1, or 2 correct groups,
+    // capping every loss score at 3 (2 correct groups, at most 3+4=7,
+    // minus 4 wrong = 3) with every win score starting at 7 (all 4, minus
+    // 3 wrong). No slot reserved for the impossible scores at all -- the
+    // dotted split line just sits in the gap between the two halves below.
+    var SCORES = [-4, -3, -2, -1, 0, 1, 2, 3, 7, 8, 9, 10];
+    var WIN_THRESHOLD = 7; // the first score in SCORES that's a win, not a loss
+
+    function renderStatsChart(counts) {
+      var scores = SCORES;
+
+      var maxCount = 0;
+      for (var i = 0; i < scores.length; i++) {
+        var thisCount = counts[scores[i]] || 0;
+        if (thisCount > maxCount) {
+          maxCount = thisCount;
+        }
+      }
+
+      var width = 320;
+      var height = 120;
+
+      if (maxCount === 0) {
+        // Same viewBox as the real chart below -- #stats-chart has a fixed
+        // reserved height in CSS specifically so it never shifts regardless
+        // of which of the two this ends up rendering.
+        document.getElementById("stats-chart").innerHTML =
+          "<svg viewBox=\"0 0 " + width + " " + height + "\" role=\"img\" " +
+          "aria-label=\"No completions recorded yet for today's puzzle\">" +
+          "<text x=\"" + width / 2 + "\" y=\"" + height / 2 + "\" font-size=\"13\" " +
+          "font-weight=\"800\" letter-spacing=\"0.08em\" text-anchor=\"middle\" " +
+          "dominant-baseline=\"middle\" fill=\"#ccc\">NO DATA</text></svg>";
+        return;
+      }
+
+      var gap = 3;
+      var barWidth = (width - gap * (scores.length - 1)) / scores.length;
+      var plotHeight = height - 16; // leaves room for the x-axis score labels
+      var headroom = 0.9; // tallest bar sits slightly under the top, not flush
+
+      var parts = [];
+      var splitIndex = scores.indexOf(WIN_THRESHOLD); // first win-score's position -- the gap sits right before it
+      for (var i = 0; i < scores.length; i++) {
+        var score = scores[i];
+        var x = i * (barWidth + gap);
+        var labelX = x + barWidth / 2;
+        parts.push(
+          "<text x=\"" + labelX + "\" y=\"" + (height - 4) + "\" font-size=\"7\" " +
+          "text-anchor=\"middle\" fill=\"#777\">" + score + "</text>"
+        );
+        var count = counts[score] || 0;
+        var barHeight = (count / maxCount) * plotHeight * headroom;
+        var color = score < WIN_THRESHOLD ? "var(--difficulty-4)" : "var(--difficulty-1)";
+        parts.push(
+          "<rect x=\"" + x + "\" y=\"" + (plotHeight - barHeight) + "\" width=\"" + barWidth + "\" " +
+          "height=\"" + barHeight + "\" rx=\"2\" style=\"fill:" + color + "\" />"
+        );
+      }
+
+      // Midpoint of the gap between the last loss bar and the first win
+      // bar, not tied to any specific bar's own position.
+      var splitX = splitIndex * (barWidth + gap) - gap / 2;
+      var splitLine =
+        "<line x1=\"" + splitX + "\" y1=\"0\" x2=\"" + splitX + "\" y2=\"" + plotHeight + "\" " +
+        "stroke=\"#999\" stroke-width=\"1\" stroke-dasharray=\"3,3\" />";
+
+      document.getElementById("stats-chart").innerHTML =
+        "<svg viewBox=\"0 0 " + width + " " + height + "\" role=\"img\" " +
+        "aria-label=\"Score distribution for today's puzzle\">" +
+        parts.join("") + splitLine + "</svg>";
+    }
+
+    fetch(API_HOST + "/completions", { method: "POST", body: JSON.stringify({ date: "${date_iso}" }) })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (data) {
+        renderStatsChart(data.counts || {});
+      })
+      .catch(function () {});
   </script>
 </body>
 </html>

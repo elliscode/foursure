@@ -13,6 +13,11 @@ from google.genai import types
 PUZZLE_BUCKET_NAME = os.environ.get("PUZZLE_BUCKET_NAME")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 MODEL_NAME = "gemini-3.7-flash"
+# Which end of a missing-post gap to backfill from -- see _next_missing_date()
+# below. Anything other than exactly "oldest" (unset, blank, a typo) falls
+# back to "newest", matching the original hardcoded behavior -- this should
+# never be able to crash the Lambda over a bad env var value.
+BACKFILL_ORDER = os.environ.get("BACKFILL_ORDER", "newest")
 
 SITE_URL = "https://fourplay.elliscode.com/"
 
@@ -24,6 +29,8 @@ BLOG_KEY_PREFIX = "blog/"
 # no special-casing needed to keep it out of either.
 DATED_BLOG_KEY_PATTERN = re.compile(r"^blog/\d{4}-\d{2}-\d{2}\.html$")
 TEMPLATE_KEY = "blog/template.html"
+BLOG_INDEX_KEY = "blog/index.html"
+BLOG_INDEX_TEMPLATE_KEY = "blog/index-template.html"
 SITEMAP_KEY = "sitemap.xml"
 
 s3 = boto3.client("s3")
@@ -82,21 +89,25 @@ def _list_dated_dates(prefix, pattern, suffix):
     return {key[len(prefix) : -len(suffix)] for key in keys}
 
 
-# Deliberately the MOST RECENT missing date, not the oldest -- in normal
+# Which direction to pick from a gap is controlled by BACKFILL_ORDER above.
+# "newest" (the default) picks the most recent missing date -- in normal
 # nightly operation this always converges to last night's newly-published
 # puzzle anyway, so it only matters if there's ever a multi-day backlog, in
 # which case only the newest gap gets backfilled per run (see
-# DEPLOYMENT_STEPS.md for how to manually re-invoke for an older gap).
-def _most_recent_missing_date():
+# DEPLOYMENT_STEPS.md for how to manually force an older one under that
+# setting). "oldest" instead works through a real backlog chronologically,
+# one date per run, on its own with no manual intervention needed.
+def _next_missing_date():
     puzzle_dates = _list_dated_dates(PUZZLE_KEY_PREFIX, DATED_PUZZLE_KEY_PATTERN, ".json")
     blog_dates = _list_dated_dates(BLOG_KEY_PREFIX, DATED_BLOG_KEY_PATTERN, ".html")
     missing = puzzle_dates - blog_dates
     if not missing:
         return None
-    return max(missing)  # lexicographic sort == chronological for YYYY-MM-DD
+    # lexicographic sort == chronological for YYYY-MM-DD
+    return min(missing) if BACKFILL_ORDER == "oldest" else max(missing)
 
 
-# Same DATED_BLOG_KEY_PATTERN _most_recent_missing_date() uses above, but
+# Same DATED_BLOG_KEY_PATTERN _next_missing_date() uses above, but
 # keeping the full (date, LastModified) pairs this time instead of just the
 # bare date strings -- list_objects_v2 already returns LastModified per
 # object, so this costs nothing extra to also feed the sitemap's <lastmod>.
@@ -110,15 +121,17 @@ def _list_blog_posts():
     return sorted(posts)
 
 
-# Home page + submit-group.html are the two other real, indexable pages on
-# the site -- everything else (puzzles/*.json, admin.html, the KaiOS app's
-# own origin) is either raw data or not meant to be crawled at all. Plain
-# string-built XML -- sitemaps.org's format is simple and fixed-shape here,
-# every URL is either a static path or digits/hyphens, so nothing needs
-# real XML escaping.
-def _build_sitemap_xml():
-    urls = [(SITE_URL, None), (f"{SITE_URL}submit-group.html", None)]
-    for date_str, last_modified in _list_blog_posts():
+# Home page, submit-group.html, and the blog index are the other real,
+# indexable pages on the site -- everything else (puzzles/*.json,
+# admin.html, the KaiOS app's own origin) is either raw data or not meant
+# to be crawled at all. Plain string-built XML -- sitemaps.org's format is
+# simple and fixed-shape here, every URL is either a static path or
+# digits/hyphens, so nothing needs real XML escaping. Takes blog_posts
+# rather than calling _list_blog_posts() itself so generate_blog_post() can
+# share one listing between this and _update_blog_index() below.
+def _build_sitemap_xml(blog_posts):
+    urls = [(SITE_URL, None), (f"{SITE_URL}submit-group.html", None), (f"{SITE_URL}{BLOG_INDEX_KEY}", None)]
+    for date_str, last_modified in blog_posts:
         urls.append((f"{SITE_URL}blog/{date_str}.html", last_modified.strftime("%Y-%m-%d")))
 
     entries = []
@@ -137,14 +150,42 @@ def _build_sitemap_xml():
 
 
 # Regenerated on every run, not just when a new post actually gets
-# published -- cheap (one list_objects_v2 + one put_object), and keeps it
-# self-healing if blog/* ever changes some other way.
-def _update_sitemap():
+# published -- cheap (one put_object, no new listing since blog_posts is
+# already fetched) and keeps it self-healing if blog/* ever changes some
+# other way.
+def _update_sitemap(blog_posts):
     s3.put_object(
         Bucket=PUZZLE_BUCKET_NAME,
         Key=SITEMAP_KEY,
-        Body=_build_sitemap_xml().encode("utf-8"),
+        Body=_build_sitemap_xml(blog_posts).encode("utf-8"),
         ContentType="application/xml",
+    )
+
+
+# Newest-first list of every post, linking to each by its (same-directory,
+# relative) filename. Every field here comes straight from the S3 key names
+# already listed for the sitemap -- _display_date() is a pure function, so
+# no past post's content ever gets re-fetched or re-parsed just because a
+# new one was added. html.escape() on the label is defensive consistency
+# with the rest of this file, not a real risk -- the input is always a
+# regex-validated YYYY-MM-DD key name, never user/LLM text.
+def _build_blog_index_html(blog_posts):
+    entries = "\n".join(
+        f'      <li><a href="{date_str}.html">{html.escape(_display_date(date_str))}</a></li>'
+        for date_str, _ in sorted(blog_posts, reverse=True)
+    )
+    template_obj = s3.get_object(Bucket=PUZZLE_BUCKET_NAME, Key=BLOG_INDEX_TEMPLATE_KEY)
+    return Template(template_obj["Body"].read().decode("utf-8")).substitute(entries=entries)
+
+
+# Same self-healing "runs every time, not just on a new post" reasoning as
+# _update_sitemap() above.
+def _update_blog_index(blog_posts):
+    s3.put_object(
+        Bucket=PUZZLE_BUCKET_NAME,
+        Key=BLOG_INDEX_KEY,
+        Body=_build_blog_index_html(blog_posts).encode("utf-8"),
+        ContentType="text/html; charset=utf-8",
     )
 
 
@@ -245,7 +286,7 @@ def _render_post(date_str, groups, explanations, why_paragraph):
 
 
 def generate_blog_post():
-    date_str = _most_recent_missing_date()
+    date_str = _next_missing_date()
     if date_str is None:
         print("No missing blog post to generate")
         result = {"generated": False, "reason": "no missing blog dates"}
@@ -266,7 +307,10 @@ def generate_blog_post():
 
     # Runs whichever branch above ran -- see _update_sitemap()'s own
     # comment for why this isn't gated on a post actually being generated.
-    _update_sitemap()
+    # One shared listing for both, rather than each re-listing blog/ itself.
+    blog_posts = _list_blog_posts()
+    _update_sitemap(blog_posts)
+    _update_blog_index(blog_posts)
     return result
 
 

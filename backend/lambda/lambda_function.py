@@ -4,7 +4,7 @@ from fourplay.admin import decide_group_route, edit_group_route, list_groups_rou
 from fourplay.groups import submit_group_route
 from fourplay.logger import log
 from fourplay.puzzle import create_puzzle_route, delete_puzzle_route, generate_puzzle, list_puzzles_route
-from fourplay.results import submit_result_route
+from fourplay.results import get_completions_route, submit_result_route
 from fourplay.utils import (
     format_response,
     get_request_metadata,
@@ -46,6 +46,11 @@ def route(event):
     # stored; the point is purely the log line it prints.
     if path_equals(event=event, method="POST", path="/submit-result"):
         return submit_result_route(event)
+
+    # Public, no auth -- see get_completions_route()'s own comment. Feeds
+    # the bar chart on each blog post (s3/blog/template.html).
+    if path_equals(event=event, method="POST", path="/completions"):
+        return get_completions_route(event)
 
     # Admin moderation routes — phone-OTP login, then list/decide/edit.
     if path_equals(event=event, method="POST", path="/admin/otp"):

@@ -174,21 +174,24 @@ def delete_puzzle_route(event, admin_phone, body):
     return format_response(event=event, http_code=200, body={"id": puzzle_id})
 
 
+# list_objects_v2 already returns keys in ascending lexicographic order,
+# which sorts YYYY-MM-DD.json filenames chronologically too — but
+# default00N.json sorts *after* every dated key ("d" > any digit), so those
+# have to be filtered out explicitly, or the "last" key in _next_puzzle_id()
+# below would always be one of them and numbering would freeze at 1 forever.
+# Shared between that and generate_puzzle()'s own already-published check
+# below, so both work off one listing instead of two separate S3 calls.
+def _list_dated_puzzle_keys():
+    result = s3.list_objects_v2(Bucket=PUZZLE_BUCKET_NAME, Prefix=PUZZLE_KEY_PREFIX)
+    return sorted(obj["Key"] for obj in result.get("Contents", []) if DATED_PUZZLE_KEY_PATTERN.match(obj["Key"]))
+
+
 # Every puzzle file (the frontend's default00N.json fallbacks included)
 # carries its own "id" — real ones get theirs assigned here, once, at
 # publish time: read whatever the most recently published puzzle's id was
 # and add 1. No DynamoDB counter or similar needed since S3 already gives us
 # an ordered listing to read back.
-def _next_puzzle_id():
-    result = s3.list_objects_v2(Bucket=PUZZLE_BUCKET_NAME, Prefix=PUZZLE_KEY_PREFIX)
-    # list_objects_v2 already returns keys in ascending lexicographic order,
-    # which sorts YYYY-MM-DD.json filenames chronologically too — but
-    # default00N.json sorts *after* every dated key ("d" > any digit), so
-    # those have to be filtered out explicitly first, or the "last" key
-    # would always be one of them and numbering would freeze at 1 forever.
-    dated_keys = sorted(
-        obj["Key"] for obj in result.get("Contents", []) if DATED_PUZZLE_KEY_PATTERN.match(obj["Key"])
-    )
+def _next_puzzle_id(dated_keys):
     if not dated_keys:
         return 1  # first-ever real publish — the default00N.json files all carry id 0
     last = s3.get_object(Bucket=PUZZLE_BUCKET_NAME, Key=dated_keys[-1])
@@ -207,6 +210,20 @@ def _next_puzzle_id():
 # the queue indefinitely while newer ones keep getting picked instead) and
 # publishes it.
 def generate_puzzle():
+    target_date = (datetime.now(timezone.utc) + timedelta(days=1)).strftime("%Y-%m-%d")
+    target_key = f"{PUZZLE_KEY_PREFIX}{target_date}.json"
+
+    # Guards against the EventBridge rule (or a manual invoke) firing twice
+    # in the same day — without this, a second run would pick a *different*
+    # unused puzzle out of the queue (the first run's pick is already marked
+    # used) and silently overwrite target_key with it, burning a queued
+    # puzzle whose content never actually gets served. Checked before the
+    # DynamoDB queue is touched at all, so a duplicate firing costs nothing.
+    dated_keys = _list_dated_puzzle_keys()
+    if target_key in dated_keys:
+        log(f"{target_key} already exists -- skipping so nothing gets double-published or a queued puzzle wasted")
+        return {"generated": False, "reason": "already published", "date": target_date}
+
     filter_expression, expr_names, expr_values = PUZZLE_STATUS_FILTERS["unused"]
     pool = _query_puzzles(filter_expression, expr_names, expr_values)
     if not pool:
@@ -215,8 +232,7 @@ def generate_puzzle():
 
     pool.sort(key=lambda p: p.get("createdAt", 0))
     chosen = pool[0]
-    target_date = (datetime.now(timezone.utc) + timedelta(days=1)).strftime("%Y-%m-%d")
-    puzzle_number = _next_puzzle_id()
+    puzzle_number = _next_puzzle_id(dated_keys)
 
     groups_payload = sorted(
         [{"category": g["category"], "words": g["words"], "difficulty": g["difficulty"]} for g in chosen["groups"]],

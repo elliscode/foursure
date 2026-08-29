@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en" prefix="og: https://ogp.me/ns#">
+<head>
+<meta charset="utf-8" />
+<!--
+  Real template -- see backend/fourplay-blog-generator/lambda_function.py's
+  _build_blog_index_html(), which fetches this file at runtime and fills
+  the one dollar-brace placeholder below via Python's stdlib string.Template
+  on every run (not just when a new post is generated -- see
+  _update_blog_index()'s own comment). Edits here take effect immediately
+  (no Lambda redeploy needed), but don't sync up through the normal
+  frontend release script -- s3/release.sh deliberately excludes blog/*
+  (see its own comment), since that's also where the Lambda writes
+  generated pages. Push template changes with a direct `aws s3 cp` to the
+  bucket's blog/index-template.html key instead.
+  Note for maintainers: rendering is strict, so nowhere in this file
+  (including this comment) should the currency-sign character appear
+  outside the real dollar-brace placeholder below -- an unescaped stray
+  one anywhere else breaks rendering at generation time.
+-->
+<title>Puzzle Breakdowns &mdash; Fourplay</title>
+<link rel="icon" type="image/png" href="../assets/icons/kaios_112.png" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="Every daily Fourplay puzzle breakdown, newest first." />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Fourplay" />
+<meta property="og:title" content="Puzzle Breakdowns" />
+<meta property="og:description" content="Every daily Fourplay puzzle breakdown, newest first." />
+<meta property="og:url" content="https://fourplay.elliscode.com/blog/index.html" />
+<meta property="og:image" content="https://fourplay.elliscode.com/img/og-banner.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="650" />
+<meta property="og:image:alt" content="Fourplay -- a daily word puzzle" />
+<link rel="canonical" href="https://fourplay.elliscode.com/blog/index.html" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Puzzle Breakdowns" />
+<meta name="twitter:description" content="Every daily Fourplay puzzle breakdown, newest first." />
+<meta name="twitter:image" content="https://fourplay.elliscode.com/img/og-banner.png" />
+<style>
+  /* Same font/palette setup as blog/template.html -- kept in sync manually. */
+  @font-face {
+    font-family: "Libre Franklin";
+    src: url("../assets/fonts/LibreFranklin-Variable.woff2") format("woff2");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Libre Franklin";
+    src: url("../assets/fonts/LibreFranklin-Variable.woff2") format("woff2");
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Libre Franklin";
+    src: url("../assets/fonts/LibreFranklin-Variable.woff2") format("woff2");
+    font-weight: 800;
+    font-style: normal;
+    font-display: swap;
+  }
+
+  :root {
+    --ink: #1a1a1a;
+    --accent-dark: #3a3a34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 40px 16px 64px;
+    font-family: "Libre Franklin", -apple-system, BlinkMacSystemFont, sans-serif;
+    color: var(--ink);
+    background: #faf9f5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  article {
+    width: 100%;
+    max-width: 640px;
+    background: #fff;
+    border-radius: 16px;
+    padding: 32px 28px 40px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+  }
+  a.back-link {
+    color: #0474ba;
+    text-decoration: none;
+    font-size: 0.9rem;
+  }
+  .masthead {
+    margin: 20px 0 4px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.15em;
+    color: var(--accent-dark);
+  }
+  h1 {
+    font-size: 2.1rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    margin: 0 0 4px;
+  }
+  .post-date {
+    color: #777;
+    margin: 0 0 32px;
+    font-size: 0.95rem;
+  }
+  .post-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .post-list li {
+    border-bottom: 1px solid #e5e5e0;
+  }
+  .post-list li:first-child {
+    border-top: 1px solid #e5e5e0;
+  }
+  .post-list a {
+    display: block;
+    padding: 14px 4px;
+    color: var(--ink);
+    text-decoration: none;
+    font-weight: 700;
+  }
+  .post-list a:hover {
+    color: #0474ba;
+  }
+  @media (max-width: 420px) {
+    h1 {
+      font-size: 1.6rem;
+    }
+  }
+</style>
+</head>
+<body>
+  <article>
+    <a class="back-link" href="../index.html">&larr; Back to today's puzzle</a>
+    <p class="masthead">FOURPLAY</p>
+    <h1>Puzzle Breakdowns</h1>
+    <p class="post-date">Every daily puzzle, explained -- newest first.</p>
+    <ul class="post-list">
+${entries}
+    </ul>
+  </article>
+</body>
+</html>

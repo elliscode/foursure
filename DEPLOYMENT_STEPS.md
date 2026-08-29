@@ -110,6 +110,7 @@ A second, independent Lambda from step 4 — `fourplay-blog-generator` finds the
 |---|---|
 | `PUZZLE_BUCKET_NAME` | The same bucket name from step 2 — this Lambda reuses it, no new bucket |
 | `GEMINI_API_KEY` | Your Gemini API key — plain env var, same convention as `SMS_SQS_QUEUE_URL` above (no Secrets Manager anywhere in this project) |
+| `BACKFILL_ORDER` | Optional. `newest` (default if unset) or `oldest` — which missing date to backfill next when there's a multi-day gap. Toggle any time directly in the console, no redeploy needed. |
 
 ### 11. EventBridge scheduled rule — blog generator
 
