@@ -334,6 +334,13 @@ function clearThePuzzle() {
   results.style.display = "none";
   gameControls.style.display = "none";
   guesses.style.display = "none";
+  // gameOver() below sets this element's inline display explicitly in both
+  // directions (shown for a real dated puzzle, hidden for a default00N.json
+  // fallback) — an inline style beats the body.game-ended CSS rule either
+  // way, so without clearing it back to "" here, switching from a finished
+  // fallback puzzle straight into a new one would carry the stale inline
+  // style over instead of starting hidden again.
+  document.getElementById("blog-results-link").style.display = "";
 }
 
 function seedGuesses() {
@@ -680,6 +687,22 @@ function gameOver(success) {
     drawAttempt(attempt);
   }
   persistGameState();
+
+  // Only a real, dated puzzle -- never one of the 8 default00N.json
+  // fallbacks, which carry a blank puzzleSolution.date -- has ever actually
+  // been through fourplay-blog-generator, so only show/link this for one of
+  // those; a fallback's "blog post" was never generated and would just 404.
+  // Explicit in both directions (not just when true) since the link's
+  // inline display would otherwise carry over from a previous puzzle this
+  // same page session -- see clearThePuzzle()'s own reset of this.
+  let blogResultsLink = document.getElementById("blog-results-link");
+  if (puzzleSolution.date) {
+    document.getElementById("blog-results-anchor").href = `${SITE_URL}blog/${puzzleSolution.date}.html`;
+    blogResultsLink.style.display = "block";
+  } else {
+    blogResultsLink.style.display = "none";
+  }
+
   // setFocus() calls updateSoftkeys() itself (the center label depends on
   // what's focused), so no separate call needed here. Same
   // KAIOS_WIDTH_BREAKPOINT gating as getThePuzzle()/checkGuess() — clicking
@@ -1131,14 +1154,28 @@ function wireDatePickerWrapper() {
 // of multiple windows/tabs though, so window.open()'s actual behavior
 // there is unconfirmed — if it's unsupported or returns null, this falls
 // through to the anchor's own normal href navigation instead (the previous
-// behavior), rather than silently doing nothing.
-function wireSubmitGroupLink() {
-  document.getElementById("submit-group-anchor").addEventListener("click", (event) => {
+// behavior), rather than silently doing nothing. Shared by
+// #submit-group-anchor and #blog-results-anchor below — same behavior,
+// different anchor.
+function wireExternalLinkOpen(anchorEl) {
+  anchorEl.addEventListener("click", (event) => {
     let newWindow = window.open(event.currentTarget.href, "_blank");
     if (newWindow) {
       event.preventDefault();
     }
   });
+}
+
+function wireSubmitGroupLink() {
+  wireExternalLinkOpen(document.getElementById("submit-group-anchor"));
+}
+
+// #blog-results-link only ever shows once gameOver() below reveals it (and
+// only for a real dated puzzle, never one of the default00N.json fallbacks
+// — see gameOver()'s own comment on why), so wiring the click behavior up
+// front here is safe even though the href isn't set to anything real yet.
+function wireBlogResultsLink() {
+  wireExternalLinkOpen(document.getElementById("blog-results-anchor"));
 }
 
 // Named so both the physical-key handling in handleKeydown below and the
@@ -1328,6 +1365,7 @@ function displayAd() {
 computeContrastColors();
 wireDatePickerWrapper();
 wireSubmitGroupLink();
+wireBlogResultsLink();
 wireDatePickerChangeDetection();
 wireResultsContentClick();
 wireAnswersClick();

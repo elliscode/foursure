@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en" prefix="og: https://ogp.me/ns#">
+<head>
+<meta charset="utf-8" />
+<!--
+  Static, hand-written page -- unlike template.html/index-template.html,
+  this one is never touched by fourplay-blog-generator or run through
+  string.Template at all, so there's no dollar-brace placeholder risk here.
+  Still lives under blog/*, though, which s3/release.sh excludes entirely
+  from its normal sync (see that script's own comment) -- push edits with
+  a direct `aws s3 cp` to the bucket's blog/how-we-score.html key, same as
+  template.html/index-template.html need.
+-->
+<title>How Scoring Works &mdash; Fourplay</title>
+<link rel="icon" type="image/png" href="../assets/icons/kaios_112.png" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="How Fourplay's score is calculated, and why some scores are impossible to get." />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Fourplay" />
+<meta property="og:title" content="How Scoring Works" />
+<meta property="og:description" content="How Fourplay's score is calculated, and why some scores are impossible to get." />
+<meta property="og:url" content="https://fourplay.elliscode.com/blog/how-we-score.html" />
+<meta property="og:image" content="https://fourplay.elliscode.com/img/og-banner.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="650" />
+<meta property="og:image:alt" content="Fourplay -- a daily word puzzle" />
+<link rel="canonical" href="https://fourplay.elliscode.com/blog/how-we-score.html" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="How Scoring Works" />
+<meta name="twitter:description" content="How Fourplay's score is calculated, and why some scores are impossible to get." />
+<meta name="twitter:image" content="https://fourplay.elliscode.com/img/og-banner.png" />
+<style>
+  /* Same font/palette setup as template.html/index-template.html -- kept
+     in sync manually. */
+  @font-face {
+    font-family: "Libre Franklin";
+    src: url("../assets/fonts/LibreFranklin-Variable.woff2") format("woff2");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Libre Franklin";
+    src: url("../assets/fonts/LibreFranklin-Variable.woff2") format("woff2");
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Libre Franklin";
+    src: url("../assets/fonts/LibreFranklin-Variable.woff2") format("woff2");
+    font-weight: 800;
+    font-style: normal;
+    font-display: swap;
+  }
+
+  :root {
+    --difficulty-1: #00b000;
+    --difficulty-2: #fddb00;
+    --difficulty-3: #ff8a05;
+    --difficulty-4: #c10000;
+    --ink: #1a1a1a;
+    --accent-dark: #3a3a34;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 40px 16px 64px;
+    font-family: "Libre Franklin", -apple-system, BlinkMacSystemFont, sans-serif;
+    color: var(--ink);
+    background: #faf9f5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  article {
+    width: 100%;
+    max-width: 640px;
+    background: #fff;
+    border-radius: 16px;
+    padding: 32px 28px 40px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+  }
+  a.back-link {
+    color: #0474ba;
+    text-decoration: none;
+    font-size: 0.9rem;
+  }
+  .masthead {
+    margin: 20px 0 4px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.15em;
+    color: var(--accent-dark);
+  }
+  h1 {
+    font-size: 2.1rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    margin: 0 0 4px;
+  }
+  .post-date {
+    color: #777;
+    margin: 0 0 32px;
+    font-size: 0.95rem;
+  }
+  h2 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin: 32px 0 8px;
+  }
+  p {
+    line-height: 1.6;
+  }
+  .rule-list {
+    margin: 0 0 24px;
+    padding: 0;
+    list-style: none;
+  }
+  /* Grid, not flex -- a fixed-width flex child still leaves the amount
+     column's actual rendered width at the mercy of its content/other
+     items, which is exactly why "+1 to +4" and "-1" lined their
+     descriptions up unevenly. A grid column is a hard, consistent width
+     across every row regardless of what's in it. */
+  .rule-list li {
+    display: grid;
+    grid-template-columns: 72px 1fr;
+    align-items: baseline;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    margin-bottom: 8px;
+    background: #f5f4ef;
+    justify-items: end;
+    align-items: center;
+  }
+  .rule-list .amount {
+    font-weight: 800;
+    font-size: 1.1rem;
+  }
+  .rule-list .amount.positive { color: var(--difficulty-1); }
+  .rule-list .amount.negative { color: var(--difficulty-4); }
+  .score-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0 0 8px;
+  }
+  .score-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 32px;
+    padding: 0 8px;
+    border-radius: 999px;
+    font-weight: 800;
+    font-size: 0.9rem;
+    color: #fff;
+  }
+  .score-pill.loss { background: var(--difficulty-4); }
+  .score-pill.win { background: var(--difficulty-1); }
+  .score-pill.impossible {
+    background: none;
+    border: 1px dashed #ccc;
+    color: #bbb;
+    text-decoration: line-through;
+  }
+  .why-section {
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid #e5e5e0;
+  }
+</style>
+</head>
+<body>
+  <article>
+    <a class="back-link" href="../index.html">&larr; Back to today's puzzle</a>
+    <p class="masthead">FOURPLAY</p>
+    <h1>How Scoring Works</h1>
+    <p class="post-date">The math behind the "How everyone did today" chart on every puzzle breakdown.</p>
+
+    <h2>The basics</h2>
+    <ul class="rule-list">
+      <li><span class="amount positive">+1 to +4</span> <span>Guessing a whole group correctly earns that group's own difficulty value &mdash; 1 for the easiest group, up to 4 for the hardest.</span></li>
+      <li><span class="amount negative">&minus;1</span> <span>Any other 4-tile guess &mdash; mixing tiles from different groups &mdash; costs 1 point, correct group or not.</span></li>
+    </ul>
+    <p>
+      You get 4 wrong guesses before the puzzle ends in a loss. A perfect, no-mistake win earns every difficulty's
+      value at once: 1 + 2 + 3 + 4 = <strong>10</strong>. A total loss with no groups solved at all is
+      <strong>&minus;4</strong>.
+    </p>
+
+    <h2>Why some scores never show up</h2>
+    <p>
+      Once you've correctly solved 3 of the 4 groups, only one group's 4 tiles are left on the board &mdash; and since
+      every guess has to be exactly 4 tiles, there's no other combination left to pick. Your next guess is
+      guaranteed correct. That means it's mathematically impossible to still be sitting at "3 solved" when a 4th
+      wrong guess would end the game &mdash; reaching 3 correct always becomes 4 correct (a win) first.
+    </p>
+    <p>
+      That one fact rules out three scores entirely &mdash; <strong>4, 5, and 6</strong> can never happen, which is why
+      the bar chart on each post's breakdown skips straight from 3 to 7 with a dotted line marking the gap.
+    </p>
+
+    <h2>Every score that's actually possible</h2>
+    <p class="score-pills">
+      <span class="score-pill loss">&minus;4</span>
+      <span class="score-pill loss">&minus;3</span>
+      <span class="score-pill loss">&minus;2</span>
+      <span class="score-pill loss">&minus;1</span>
+      <span class="score-pill loss">0</span>
+      <span class="score-pill loss">1</span>
+      <span class="score-pill loss">2</span>
+      <span class="score-pill loss">3</span>
+      <span class="score-pill impossible">4</span>
+      <span class="score-pill impossible">5</span>
+      <span class="score-pill impossible">6</span>
+      <span class="score-pill win">7</span>
+      <span class="score-pill win">8</span>
+      <span class="score-pill win">9</span>
+      <span class="score-pill win">10</span>
+    </p>
+    <p>
+      Red is a loss (0, 1, or 2 groups solved before the 4th wrong guess), green is a win (all 4 groups, with 0 to 3
+      wrong guesses along the way), and the three crossed-out scores in the middle are the mathematically impossible
+      ones explained above.
+    </p>
+
+    <div class="why-section">
+      <h2>Nothing about you is stored</h2>
+      <p>
+        The only thing Fourplay ever records is an anonymous count for each date-and-score pair &mdash; "3 people got a
+        7 on August 29th," for example. There's no account system, no identifying information sent or saved, and
+        nothing about an individual game is ever retrievable after the fact.
+      </p>
+    </div>
+  </article>
+</body>
+</html>

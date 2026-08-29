@@ -121,16 +121,22 @@ def _list_blog_posts():
     return sorted(posts)
 
 
-# Home page, submit-group.html, and the blog index are the other real,
-# indexable pages on the site -- everything else (puzzles/*.json,
-# admin.html, the KaiOS app's own origin) is either raw data or not meant
-# to be crawled at all. Plain string-built XML -- sitemaps.org's format is
-# simple and fixed-shape here, every URL is either a static path or
-# digits/hyphens, so nothing needs real XML escaping. Takes blog_posts
-# rather than calling _list_blog_posts() itself so generate_blog_post() can
-# share one listing between this and _update_blog_index() below.
+# Home page, submit-group.html, the blog index, and the static scoring
+# explainer are the other real, indexable pages on the site -- everything
+# else (puzzles/*.json, admin.html, the KaiOS app's own origin) is either
+# raw data or not meant to be crawled at all. Plain string-built XML --
+# sitemaps.org's format is simple and fixed-shape here, every URL is either
+# a static path or digits/hyphens, so nothing needs real XML escaping.
+# Takes blog_posts rather than calling _list_blog_posts() itself so
+# generate_blog_post() can share one listing between this and
+# _update_blog_index() below.
 def _build_sitemap_xml(blog_posts):
-    urls = [(SITE_URL, None), (f"{SITE_URL}submit-group.html", None), (f"{SITE_URL}{BLOG_INDEX_KEY}", None)]
+    urls = [
+        (SITE_URL, None),
+        (f"{SITE_URL}submit-group.html", None),
+        (f"{SITE_URL}{BLOG_INDEX_KEY}", None),
+        (f"{SITE_URL}blog/how-we-score.html", None),
+    ]
     for date_str, last_modified in blog_posts:
         urls.append((f"{SITE_URL}blog/{date_str}.html", last_modified.strftime("%Y-%m-%d")))
 

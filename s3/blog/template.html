@@ -132,6 +132,78 @@
     color: var(--accent-dark);
     margin: 0 0 8px;
   }
+  /* The (i) icon + hover/focus tooltip linking to how-we-score.html. Reset
+     text-transform/letter-spacing/font-weight explicitly on both, since
+     they'd otherwise inherit .stats-label's uppercase/spaced/heavy styling
+     from the parent <p>. */
+  .info-icon-wrap {
+    position: relative;
+    display: inline-block;
+    margin-left: 4px;
+    vertical-align: middle;
+  }
+  .info-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    border: 1px solid #aaa;
+    color: #999;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 10px;
+    font-style: italic;
+    font-weight: 700;
+    text-transform: none;
+    letter-spacing: normal;
+    text-decoration: none;
+    cursor: pointer;
+    user-select: none;
+  }
+  /* Anchored from the right edge, not the left -- the icon sits at the end
+     of a fairly long label, close to the card's right edge, so a
+     left-anchored tooltip would overflow past the edge of the page
+     instead of staying within the card. Wraps (rather than nowrap) as a
+     second safety net for narrow viewports. */
+  .info-tooltip {
+  	width:130px;
+    display: none;
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    margin-bottom: 8px;
+    background: var(--accent-dark);
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: none;
+    letter-spacing: normal;
+    white-space: normal;
+    max-width: 180px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 5;
+  }
+  .info-tooltip::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    right: 6px;
+    border: 5px solid transparent;
+    border-top-color: var(--accent-dark);
+  }
+  .info-tooltip a {
+    color: #fff;
+  }
+  /* :focus-within (not just :hover) so tabbing to the icon on a keyboard,
+     or tapping it on a touch device where taps register as focus, reveals
+     the tooltip too -- not a mouse-only affordance. */
+  .info-icon-wrap:hover .info-tooltip,
+  .info-icon-wrap:focus-within .info-tooltip {
+    display: block;
+  }
   /* Fixed reserved height regardless of whether renderStatsChart() below
      ends up drawing a real chart or the "NO DATA" placeholder -- avoids a
      layout shift once the async fetch resolves, rather than the element
@@ -242,7 +314,13 @@
     <p class="post-date">Four groups, four words each &mdash; here's the connections between today's words.</p>
 
     <div id="stats-chart-wrap">
-      <p class="stats-label">How everyone did today</p>
+      <p class="stats-label">
+        How everyone did today
+        <span class="info-icon-wrap">
+          <a class="info-icon" href="how-we-score.html">i</a>
+          <span class="info-tooltip"><a href="how-we-score.html">How do we calculate score?</a></span>
+        </span>
+      </p>
       <div id="stats-chart"></div>
     </div>
 
@@ -423,11 +501,32 @@
         );
         var count = counts[score] || 0;
         var barHeight = (count / maxCount) * plotHeight * headroom;
+        var barTop = plotHeight - barHeight;
         var color = score < WIN_THRESHOLD ? "var(--difficulty-4)" : "var(--difficulty-1)";
         parts.push(
-          "<rect x=\"" + x + "\" y=\"" + (plotHeight - barHeight) + "\" width=\"" + barWidth + "\" " +
+          "<rect x=\"" + x + "\" y=\"" + barTop + "\" width=\"" + barWidth + "\" " +
           "height=\"" + barHeight + "\" rx=\"2\" style=\"fill:" + color + "\" />"
         );
+        if (count > 0) {
+          // Only for bars that actually exist -- an empty score slot has
+          // no bar to sit "near the top of" in the first place. Clamped to
+          // never sink below the bar's own bottom edge -- a tiny bar (a
+          // count of 1 next to a much larger max) would otherwise push
+          // this into the x-axis label row below. The dark outline (via
+          // stroke + paint-order, painted behind the white fill rather
+          // than obscuring it) keeps the number legible even when a short
+          // bar forces the label to sit mostly above the colored area,
+          // against the plain page background instead of the bar itself.
+          var labelY = barTop + 10;
+          if (labelY > plotHeight - 3) {
+            labelY = plotHeight - 3;
+          }
+          parts.push(
+            "<text x=\"" + labelX + "\" y=\"" + labelY + "\" font-size=\"8\" " +
+            "font-weight=\"800\" text-anchor=\"middle\" fill=\"#fff\" " +
+            "stroke=\"rgba(58,58,52,0.55)\" stroke-width=\"2.5\" paint-order=\"stroke\">" + count + "</text>"
+          );
+        }
       }
 
       // Midpoint of the gap between the last loss bar and the first win

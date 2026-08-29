@@ -13,7 +13,7 @@ It's the first Lambda in this repo with a third-party dependency (`google-genai`
 5. Makes 5 separate Gemini calls: one per group (given only that group's own category/words/difficulty, no cross-group context) asking for a 2-4 sentence explanation, plus one given all 4 groups together asking for a closing paragraph on how they work as a puzzle (overlaps, red herrings, the difficulty curve).
 6. Fetches `blog/template.html`, substitutes the 14 `${...}` placeholders (`${display_date}`, `${group1_category}`/`${group1_words}`/`${group1_explanation}` through `group4`, `${why_paragraph}`) via Python's stdlib `string.Template`, and writes `blog/{date}.html`.
 7. Re-lists `blog/*` **once** and reuses that single listing for two independent rebuilds — no second listing call for the second artifact:
-   - `sitemap.xml` (home page, `submit-group.html`, `blog/index.html`, and one `<url>` per dated post with its S3 `LastModified` as `<lastmod>`), written to the bucket root.
+   - `sitemap.xml` (home page, `submit-group.html`, `blog/index.html`, the static `blog/how-we-score.html` explainer, and one `<url>` per dated post with its S3 `LastModified` as `<lastmod>`), written to the bucket root.
    - `blog/index.html` — every post, newest first, linking to `{date}.html`. Built from `blog/index-template.html` (same one-placeholder, `string.Template`-substituted pattern as the post template). Every entry's data (just the date, formatted) comes straight from the S3 key names already listed — no past post's content is ever re-read or re-parsed just because a new one was added.
 
    Both steps always run, even on the no-op path in step 2, so they self-heal regardless of whether a new post was generated this run.

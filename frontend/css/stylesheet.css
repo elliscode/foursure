@@ -468,6 +468,7 @@ h1 {
    full-width <p>, not structurally flush against a container edge the way
    the grid's last column always is. */
 #submit-group-link a[nav-selected="true"],
+#blog-results-link a[nav-selected="true"],
 #settings-anchor[nav-selected="true"] {
   box-shadow: 0 0 0 3px rgba(58, 58, 52, 0.4);
   border-radius: 4px;
@@ -525,9 +526,23 @@ h1 {
 }
 
 #submit-group-link {
-  margin-top: 32px;
   text-align: center;
   font-size: 0.9rem;
+}
+
+/* Hidden until gameOver() in puzzle.js reveals it -- unlike
+   #submit-group-link, this stays hidden at every width until the puzzle's
+   actually finished, not just at KaiOS width, since "how did you stack up"
+   makes no sense before there's a result to compare against. */
+#blog-results-link {
+  display: none;
+  margin-top: 12px;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+body.game-ended #blog-results-link {
+  display: block;
 }
 
 #settings-link {
@@ -537,6 +552,7 @@ h1 {
 }
 
 #submit-group-link a,
+#blog-results-link a,
 #settings-anchor {
   color: var(--chosen-bg);
 }
