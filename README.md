@@ -1,5 +1,9 @@
 # Foursure
 
+<img width="240" src="notes/frame_0007.png"/><img width="240" src="notes/frame_0107.png"/>
+
+<img width="240" src="notes/frame_0168.png"/><img width="240" src="notes/frame_0401.png"/>
+
 A daily word puzzle: find the four groups of four connected words, NYT Connections-style. Groups are proposed by anyone, moderated by an admin, and grouped into puzzles automatically each day from the approved pool. No accounts, no framework, no build step — game progress lives entirely on-device in IndexedDB.
 
 Ships as both a website (`https://foursure.elliscode.com`, still reachable at the legacy `https://fourplay.elliscode.com` during the gradual rebrand) and a packaged KaiOS feature-phone app — same `frontend/` source for both. See "KaiOS packaging" under Frontend below.
