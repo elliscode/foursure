@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>Fourplay Admin</title>
+<title>Foursure Admin</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
   * { box-sizing: border-box; }
@@ -122,7 +122,7 @@
 </style>
 </head>
 <body>
-  <h1>Fourplay — Group Submission Review</h1>
+  <h1 id="page-title">Foursure — Group Submission Review</h1>
   <p id="error"></p>
 
   <div class="login" id="generate-code" style="display:none;">
@@ -168,7 +168,15 @@
   </div>
 
 <script>
-const BASE_URL = 'https://api.fourplay.elliscode.com/admin';
+function deriveBrand(hostname) {
+  let firstLabel = (hostname.split(".")[0] || "").toLowerCase();
+  return firstLabel === "fourplay" ? "fourplay" : "foursure";
+}
+const BRAND_NAME = deriveBrand(window.location.hostname) === "foursure" ? "Foursure" : "Fourplay";
+document.title = `${BRAND_NAME} Admin`;
+document.getElementById("page-title").textContent = `${BRAND_NAME} — Group Submission Review`;
+
+const BASE_URL = 'https://api.foursure.elliscode.com/admin';
 const CSRF_STORAGE_KEY = 'fourplay-admin-csrf-token';
 
 const generateCodeDiv = document.getElementById('generate-code');

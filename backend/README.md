@@ -1,4 +1,4 @@
-# Fourplay Backend
+# Foursure Backend
 
 `lambda/` is a single Lambda function (no framework, plain Python — see `fourplay/`), structured the same way as `kaios-calorie-counter/backend`. Every route is `POST` only (to avoid CORS preflight — see the comment in `lambda_function.py`), except the puzzle-generation path, which isn't reached through API Gateway at all.
 
@@ -38,24 +38,24 @@ The frontend just requests `puzzles/{date}.json` directly and falls back to one 
 
 There *is* a `puzzles/manifest.json`, but it's unrelated to publishing — a single hand-edited field, `firstPuzzleDate`, that only bounds how far back the frontend's calendar picker will go. Nothing in this backend reads or writes it.
 
-Puzzle data (`puzzles/*.json`, including `manifest.json`) is fetched by the frontend as absolute `https://fourplay.elliscode.com/...` URLs rather than relative paths — Fourplay ships as both this website and a packaged KaiOS app whose own code runs from `http://fourplay.localhost`, which never has its own `puzzles/` directory. That makes those fetches cross-origin from the KaiOS app's perspective, so the S3 bucket needs a CORS policy allowing `GET` from both `https://fourplay.elliscode.com` and `http://fourplay.localhost` (see `DEPLOYMENT_STEPS.md`) — separate from, and in addition to, this Lambda's own `DOMAIN_NAMES` origin check below, which only governs the API routes in the table above, not the static bucket.
+Puzzle data (`puzzles/*.json`, including `manifest.json`) is fetched by the frontend as an absolute `https://{brand}.elliscode.com/...` URL rather than a relative path — Foursure (and, during the gradual rebrand, the legacy `fourplay.elliscode.com`) ships as both this website and a packaged KaiOS app whose own code runs from `http://fourplay.localhost`, which never has its own `puzzles/` directory. That makes those fetches cross-origin from the KaiOS app's perspective, so the S3 bucket needs a CORS policy allowing `GET` from `https://foursure.elliscode.com`, `https://fourplay.elliscode.com`, and `http://fourplay.localhost` (see `DEPLOYMENT_STEPS.md`) — separate from, and in addition to, this Lambda's own `DOMAIN_NAMES` origin check below, which only governs the API routes in the table above, not the static bucket.
 
 ## Environment variables
 
 | Variable | Example | Description |
 |----------|---------|--------------|
-| `DOMAIN_NAMES` | `https://fourplay.elliscode.com,http://fourplay.localhost` | Comma-separated allowlist of `Origin` headers. Any request from an origin not in this list gets a 403. Includes both the website and the packaged KaiOS app's origin (`http://fourplay.localhost`). |
-| `DYNAMODB_TABLE_NAME` | `fourplay` | The DynamoDB table every route reads/writes. |
+| `DOMAIN_NAMES` | `https://foursure.elliscode.com,https://fourplay.elliscode.com,http://fourplay.localhost` | Comma-separated allowlist of `Origin` headers. Any request from an origin not in this list gets a 403. Includes both brand domains during the gradual rebrand, plus the packaged KaiOS app's origin (`http://fourplay.localhost`). |
+| `DYNAMODB_TABLE_NAME` | `foursure` | The DynamoDB table every route reads/writes. |
 | `ADMIN_PHONES` | `5551234567,5559876543` | Comma-separated 10-digit US phone numbers permitted to log into the admin panel. `/admin/otp`/`/admin/login` reject anyone else. |
 | `SMS_SQS_QUEUE_URL` | — | The existing, project-agnostic SQS queue that an already-deployed Twilio Lambda consumes to send the OTP text — same queue `kaios-calorie-counter`/`kaios-t9-wizard` use, no new queue needed. |
-| `ADMIN_COOKIE_DOMAIN` | `.fourplay.elliscode.com` | Leading-dot wildcard domain for the admin session cookie, so it's sent back correctly if `admin.html` and the API end up on different subdomains. |
-| `PUZZLE_BUCKET_NAME` | `fourplay-elliscode-com` | The S3 bucket the frontend is hosted from — `generate_puzzle()` writes `puzzles/{date}.json` here directly, and lists the `puzzles/` prefix to assign it an `id`. |
+| `ADMIN_COOKIE_DOMAIN` | `.foursure.elliscode.com` | Leading-dot wildcard domain for the admin session cookie, so it's sent back correctly if `admin.html` and the API end up on different subdomains. |
+| `PUZZLE_BUCKET_NAME` | `foursure-elliscode-com` | The S3 bucket the frontend is hosted from — `generate_puzzle()` writes `puzzles/{date}.json` here directly, and lists the `puzzles/` prefix to assign it an `id`. |
 
 Set these on the Lambda function itself (Configuration → Environment variables in the console, or `--environment` on `aws lambda create-function`/`update-function-configuration`). No `.env` file is checked in.
 
 ## One-time AWS setup
 
-1. Create a DynamoDB table named `fourplay` — partition key `key1` (String), sort key `key2` (String). Enable **TTL** on it with `expiration` as the attribute name (used by `otp`/`token` records only — group records never expire).
+1. Create a DynamoDB table named `foursure` — partition key `key1` (String), sort key `key2` (String). Enable **TTL** on it with `expiration` as the attribute name (used by `otp`/`token` records only — group records never expire).
 2. Create a Lambda function (e.g. `fourplay-api`), Python 3.14 runtime, handler `lambda_function.lambda_handler`, with the environment variables listed above. Grant its own IAM role:
    - `dynamodb:PutItem`/`GetItem`/`UpdateItem`/`Query`/`DeleteItem` on the table — `DeleteItem` is needed now for `/admin/delete-puzzle` (a constructed-but-unpublished puzzle is disposable draft data); **groups are still never deleted**, only `key1="puzzle"` records ever go through `DeleteItem`
    - `sqs:SendMessage` on the SMS queue

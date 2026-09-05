@@ -4,31 +4,34 @@
 <meta charset="utf-8" />
 <!--
   Static, hand-written page -- unlike template.html/index-template.html,
-  this one is never touched by fourplay-blog-generator or run through
+  this one is never touched by the blog-generator Lambda or run through
   string.Template at all, so there's no dollar-brace placeholder risk here.
   Still lives under blog/*, though, which s3/release.sh excludes entirely
   from its normal sync (see that script's own comment) -- push edits with
   a direct `aws s3 cp` to the bucket's blog/how-we-score.html key, same as
   template.html/index-template.html need.
 -->
-<title>How Scoring Works &mdash; Fourplay</title>
+<title>How Scoring Works &mdash; Foursure</title>
 <link rel="icon" type="image/png" href="../assets/icons/kaios_112.png" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="description" content="How Fourplay's score is calculated, and why some scores are impossible to get." />
+<meta name="description" content="How Foursure's score is calculated, and why some scores are impossible to get." />
+<!-- Hardcoded to the Foursure brand/domain -- crawlers never run JS, so a
+     client-side rewrite (like the <title>/masthead below still get) would
+     never actually be seen by one. -->
 <meta property="og:type" content="website" />
-<meta property="og:site_name" content="Fourplay" />
+<meta property="og:site_name" content="Foursure" />
 <meta property="og:title" content="How Scoring Works" />
-<meta property="og:description" content="How Fourplay's score is calculated, and why some scores are impossible to get." />
-<meta property="og:url" content="https://fourplay.elliscode.com/blog/how-we-score.html" />
-<meta property="og:image" content="https://fourplay.elliscode.com/img/og-banner.png" />
+<meta property="og:description" content="How Foursure's score is calculated, and why some scores are impossible to get." />
+<meta property="og:url" content="https://foursure.elliscode.com/blog/how-we-score.html" />
+<meta property="og:image" content="https://foursure.elliscode.com/img/og-banner.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="650" />
-<meta property="og:image:alt" content="Fourplay -- a daily word puzzle" />
-<link rel="canonical" href="https://fourplay.elliscode.com/blog/how-we-score.html" />
+<meta property="og:image:alt" content="Foursure -- a daily word puzzle" />
+<link rel="canonical" href="https://foursure.elliscode.com/blog/how-we-score.html" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="How Scoring Works" />
-<meta name="twitter:description" content="How Fourplay's score is calculated, and why some scores are impossible to get." />
-<meta name="twitter:image" content="https://fourplay.elliscode.com/img/og-banner.png" />
+<meta name="twitter:description" content="How Foursure's score is calculated, and why some scores are impossible to get." />
+<meta name="twitter:image" content="https://foursure.elliscode.com/img/og-banner.png" />
 <style>
   /* Same font/palette setup as template.html/index-template.html -- kept
      in sync manually. */
@@ -176,7 +179,7 @@
 <body>
   <article>
     <a class="back-link" href="../index.html">&larr; Back to today's puzzle</a>
-    <p class="masthead">FOURPLAY</p>
+    <p class="masthead">FOURSURE</p>
     <h1>How Scoring Works</h1>
     <p class="post-date">The math behind the "How everyone did today" chart on every puzzle breakdown.</p>
 
@@ -229,12 +232,42 @@
 
     <div class="why-section">
       <h2>Nothing about you is stored</h2>
-      <p>
-        The only thing Fourplay ever records is an anonymous count for each date-and-score pair &mdash; "3 people got a
+      <p id="privacy-note">
+        The only thing Foursure ever records is an anonymous count for each date-and-score pair &mdash; "3 people got a
         7 on August 29th," for example. There's no account system, no identifying information sent or saved, and
         nothing about an individual game is ever retrievable after the fact.
       </p>
     </div>
   </article>
+
+  <script>
+    // Gradual domain rebrand -- the new and legacy domains are both live at
+    // once. Same deriveBrand() as frontend/js/puzzle.js and
+    // frontend/admin.html -- this repo has no shared-module/build step, so
+    // it's duplicated here too, kept in sync manually (identical to the
+    // copy in blog/template.html/blog/index-template.html). Only rewrites
+    // the <title>, masthead, and the one body paragraph mentioning the
+    // brand name now -- every og:*/twitter:*/meta-description value above
+    // is hardcoded to Foursure instead, since crawlers never run JS and
+    // would never see a client-side rewrite anyway. Foursure is the
+    // default/static text everywhere above -- this only switches to the
+    // legacy brand when actually served from that legacy host.
+    function deriveBrand(hostname) {
+      let firstLabel = (hostname.split(".")[0] || "").toLowerCase();
+      return firstLabel === "fourplay" ? "fourplay" : "foursure";
+    }
+    const BRAND_NAME = deriveBrand(window.location.hostname) === "foursure" ? "Foursure" : "Fourplay";
+
+    function replaceBrandInText(selector) {
+      let el = document.querySelector(selector);
+      if (el) {
+        el.textContent = el.textContent.replace("Foursure", BRAND_NAME);
+      }
+    }
+
+    document.title = document.title.replace("Foursure", BRAND_NAME);
+    document.querySelector(".masthead").textContent = BRAND_NAME.toUpperCase();
+    replaceBrandInText('#privacy-note');
+  </script>
 </body>
 </html>

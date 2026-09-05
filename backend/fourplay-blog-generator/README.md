@@ -1,4 +1,4 @@
-# Fourplay Blog Generator
+# Foursure Blog Generator
 
 A second, independent Lambda from `backend/lambda/` (`fourplay-api`) — this one has exactly one job and one trigger (its own EventBridge scheduled rule, no API Gateway at all). Once a night: find the most recent puzzle date in the bucket with no corresponding blog post, ask Gemini to write the explanatory copy for it, publish `blog/{date}.html`, and regenerate both `sitemap.xml` and `blog/index.html` at the bucket root / under `blog/`.
 
@@ -24,7 +24,7 @@ No retries across the 5 Gemini calls, and no partial writes for the post itself 
 
 | Variable | Example | Description |
 |----------|---------|--------------|
-| `PUZZLE_BUCKET_NAME` | `fourplay-elliscode-com` | Same bucket `fourplay-api` uses — this Lambda reads `puzzles/*`, reads/writes `blog/*`, and writes `sitemap.xml` at the root. |
+| `PUZZLE_BUCKET_NAME` | `foursure-elliscode-com` | Same bucket `fourplay-api` uses — this Lambda reads `puzzles/*`, reads/writes `blog/*`, and writes `sitemap.xml` at the root. |
 | `GEMINI_API_KEY` | — | Plain env var, same convention as `fourplay-api`'s `SMS_SQS_QUEUE_URL` — no Secrets Manager anywhere in this codebase. |
 | `BACKFILL_ORDER` | `oldest` | Optional. Which missing date to backfill next when there's a multi-day gap — `newest` (the default if this is unset, blank, or anything other than exactly `oldest`) or `oldest`. Toggle it directly in the Lambda console's environment variables whenever you want to switch, no code change needed. |
 

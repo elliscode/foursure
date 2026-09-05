@@ -18,24 +18,27 @@
   outside the real dollar-brace placeholder below -- an unescaped stray
   one anywhere else breaks rendering at generation time.
 -->
-<title>Puzzle Breakdowns &mdash; Fourplay</title>
+<title>Puzzle Breakdowns &mdash; Foursure</title>
 <link rel="icon" type="image/png" href="../assets/icons/kaios_112.png" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="description" content="Every daily Fourplay puzzle breakdown, newest first." />
+<meta name="description" content="Every daily Foursure puzzle breakdown, newest first." />
+<!-- Hardcoded to the Foursure brand/domain -- crawlers never run JS, so a
+     client-side rewrite (like the <title>/masthead below still get) would
+     never actually be seen by one. -->
 <meta property="og:type" content="website" />
-<meta property="og:site_name" content="Fourplay" />
+<meta property="og:site_name" content="Foursure" />
 <meta property="og:title" content="Puzzle Breakdowns" />
-<meta property="og:description" content="Every daily Fourplay puzzle breakdown, newest first." />
-<meta property="og:url" content="https://fourplay.elliscode.com/blog/index.html" />
-<meta property="og:image" content="https://fourplay.elliscode.com/img/og-banner.png" />
+<meta property="og:description" content="Every daily Foursure puzzle breakdown, newest first." />
+<meta property="og:url" content="https://foursure.elliscode.com/blog/index.html" />
+<meta property="og:image" content="https://foursure.elliscode.com/img/og-banner.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="650" />
-<meta property="og:image:alt" content="Fourplay -- a daily word puzzle" />
-<link rel="canonical" href="https://fourplay.elliscode.com/blog/index.html" />
+<meta property="og:image:alt" content="Foursure -- a daily word puzzle" />
+<link rel="canonical" href="https://foursure.elliscode.com/blog/index.html" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Puzzle Breakdowns" />
-<meta name="twitter:description" content="Every daily Fourplay puzzle breakdown, newest first." />
-<meta name="twitter:image" content="https://fourplay.elliscode.com/img/og-banner.png" />
+<meta name="twitter:description" content="Every daily Foursure puzzle breakdown, newest first." />
+<meta name="twitter:image" content="https://foursure.elliscode.com/img/og-banner.png" />
 <style>
   /* Same font/palette setup as blog/template.html -- kept in sync manually. */
   @font-face {
@@ -137,12 +140,35 @@
 <body>
   <article>
     <a class="back-link" href="../index.html">&larr; Back to today's puzzle</a>
-    <p class="masthead">FOURPLAY</p>
+    <p class="masthead">FOURSURE</p>
     <h1>Puzzle Breakdowns</h1>
     <p class="post-date">Every daily puzzle, explained -- newest first.</p>
     <ul class="post-list">
 ${entries}
     </ul>
   </article>
+
+  <script>
+    // Gradual domain rebrand -- the new and legacy domains are both live at
+    // once. Same deriveBrand() as frontend/js/puzzle.js and
+    // frontend/admin.html -- this repo has no shared-module/build step, so
+    // it's duplicated here too, kept in sync manually (identical to the
+    // copy in blog/template.html/blog/how-we-score.html). Only rewrites the
+    // <title> and masthead now -- every og:*/twitter:*/meta-description
+    // value above is hardcoded to Foursure instead of derived here, since
+    // crawlers never run JS and would never see a client-side rewrite
+    // anyway. No backtick template literals anywhere here -- see this
+    // file's very top comment for why. Foursure is the default/static text
+    // above -- this only switches to the legacy brand when actually served
+    // from that legacy host.
+    function deriveBrand(hostname) {
+      let firstLabel = (hostname.split(".")[0] || "").toLowerCase();
+      return firstLabel === "fourplay" ? "fourplay" : "foursure";
+    }
+    const BRAND_NAME = deriveBrand(window.location.hostname) === "foursure" ? "Foursure" : "Fourplay";
+
+    document.title = document.title.replace("Foursure", BRAND_NAME);
+    document.querySelector(".masthead").textContent = BRAND_NAME.toUpperCase();
+  </script>
 </body>
 </html>

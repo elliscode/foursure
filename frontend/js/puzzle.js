@@ -22,17 +22,42 @@ const DIFFICULTY_EMOJI = {
   "difficulty-4": "\u{1F7E5}", // red square
 };
 
-// Placeholder — same domain convention as admin.html's BASE_URL and
-// submit-group.html's API_HOST. This isn't just the share link anymore: it's
-// also the real host every puzzle-data fetch is hard-coded against (see
-// getThePuzzle()/fetchFirstPuzzleDate() below) — Fourplay ships both as this
-// website *and* as a packaged KaiOS app that serves its own code from
-// http://fourplay.localhost, which never has a puzzles/ directory of its
-// own (a packaged app can't be re-uploaded daily for tomorrow's puzzle), so
-// a relative path would 404 there. Always fetching from SITE_URL means both
-// origins read the same live data regardless of which one served the page.
-const SITE_URL = "https://fourplay.elliscode.com/";
-const API_HOST = "https://api.fourplay.elliscode.com";
+// Domain convention matches admin.html's BASE_URL and submit-group.html's
+// API_HOST, except SITE_URL is brand-dependent (API_HOST stays pinned to a
+// single fixed host regardless of brand — see below, accepts requests from
+// either origin). This isn't just the
+// share link: it's the real host every puzzle-data fetch is hard-coded
+// against (see getThePuzzle()/fetchFirstPuzzleDate() below). Fourplay/
+// Foursure ship both as this website *and* as a packaged KaiOS app that
+// serves its own code from http://fourplay.localhost, which has no
+// puzzles/ directory of its own (a packaged app can't be re-uploaded daily
+// for tomorrow's puzzle) — so a relative path would 404 there, and
+// location.origin verbatim would resolve to the KaiOS package's own fake
+// host instead of a real one. deriveBrand() reads the page's actual first
+// hostname label instead, so both origins always fetch the same live data
+// from the correct real domain. Foursure is the default now (anything that
+// isn't explicitly "fourplay" resolves to foursure) -- the KaiOS
+// "fourplay.localhost" label is an explicit match, not a default, so the
+// packaged app keeps working correctly with no special-casing needed.
+// Kept in sync manually with the identical deriveBrand() in admin.html and
+// the blog templates — update all of them if this logic ever changes.
+function deriveBrand(hostname) {
+  let firstLabel = (hostname.split(".")[0] || "").toLowerCase();
+  return firstLabel === "fourplay" ? "fourplay" : "foursure";
+}
+const BRAND = deriveBrand(window.location.hostname);
+const SITE_URL = `https://${BRAND}.elliscode.com/`;
+const API_HOST = "https://api.foursure.elliscode.com";
+// Same brand token driving SITE_URL above, just reused for display —
+// index.html's <title>/<h1> both start out as the static "Foursure" text,
+// overwritten here immediately since this script tag is the last thing in
+// <body> and runs after the real <h1> already exists in the DOM. Same
+// pattern as admin.html's BRAND_NAME (that file re-derives its own copy of
+// deriveBrand() since it's a separate <script>, not loaded through this
+// file — see that file's own comment).
+const BRAND_NAME = BRAND === "foursure" ? "Foursure" : "Fourplay";
+document.title = BRAND_NAME;
+document.querySelector("h1").textContent = BRAND_NAME;
 // Matches stylesheet.css's `@media (max-width: 240px)` breakpoint — the
 // KaiOS/D-pad-driven layout. Above this width, nobody's navigating with
 // arrow keys (mouse on desktop, no arrow-key access at all on a
@@ -147,8 +172,13 @@ function xhrGetJson(url) {
 // connections.js's get-guesses/set-guesses server round trip entirely —
 // there's no account system here, everything lives on-device.
 const DB_NAME = "fourplay";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = "gameState";
+// One record per fetched URL: {url, data}. puzzles/manifest.json and every
+// puzzles/*.json file (dated puzzles and the 8 default00N.json fallbacks)
+// are immutable once they successfully exist -- see cachedXhrGetJson()
+// below.
+const JSON_CACHE_STORE = "jsonCache";
 let dbPromise = undefined;
 
 function openDatabase() {
@@ -162,11 +192,63 @@ function openDatabase() {
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME, { keyPath: "date" });
       }
+      if (!db.objectStoreNames.contains(JSON_CACHE_STORE)) {
+        db.createObjectStore(JSON_CACHE_STORE, { keyPath: "url" });
+      }
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
   return dbPromise;
+}
+
+// Wraps xhrGetJson() with a permanent per-URL cache in JSON_CACHE_STORE.
+// Only puzzles/manifest.json and puzzles/*.json are ever passed here (see
+// fetchFirstPuzzleDate() and getThePuzzle() below) -- every one of those is
+// idempotent forever once it successfully exists, so a cache hit is served
+// with no network round trip at all, ever, until clearGameData() wipes the
+// whole database. Deliberately no try/catch around the miss-path
+// xhrGetJson() call -- a rejection (404, network error, bad JSON) has to
+// propagate straight out untouched so it's never written to the cache; the
+// dated-puzzle fetch in getThePuzzle() can legitimately 404 today and
+// succeed once that puzzle is actually published later, and caching a
+// failure would mask that permanently. IndexedDB read/write failures are
+// swallowed the same way loadGameState()/persistGameState() already do, so
+// a caching problem can never break the game.
+async function cachedXhrGetJson(url) {
+  let cached = null;
+  try {
+    let db = await openDatabase();
+    cached = await new Promise((resolve, reject) => {
+      let tx = db.transaction(JSON_CACHE_STORE, "readonly");
+      let request = tx.objectStore(JSON_CACHE_STORE).get(url);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+  } catch (e) {
+    // IndexedDB unavailable (private browsing, old browser, etc.) -- fall
+    // through to a plain network fetch below.
+  }
+  if (cached) {
+    return cached.data;
+  }
+
+  let data = await xhrGetJson(url);
+
+  try {
+    let db = await openDatabase();
+    await new Promise((resolve, reject) => {
+      let tx = db.transaction(JSON_CACHE_STORE, "readwrite");
+      tx.objectStore(JSON_CACHE_STORE).put({ url, data });
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (e) {
+    // Cache write failed -- the fetch itself already succeeded, so the
+    // caller still gets its data; it'll just hit the network again next
+    // time instead of remembering this one.
+  }
+  return data;
 }
 
 async function loadGameState(date) {
@@ -255,7 +337,7 @@ function pickInitialDate() {
 // minimum," the same safe-default behavior as today.
 async function fetchFirstPuzzleDate() {
   try {
-    let data = await xhrGetJson(`${SITE_URL}puzzles/manifest.json`);
+    let data = await cachedXhrGetJson(`${SITE_URL}puzzles/manifest.json`);
     return data.firstPuzzleDate || null;
   } catch (e) {
     return null;
@@ -360,7 +442,8 @@ function seedGuesses() {
 // one of the 8 per calendar date, so the same missing date always shows the
 // same fallback (not random) while different dates spread across all 8
 // rather than always landing on the same one. All 8 share "id": 0, so
-// "Fourplay #0" is correct regardless of which one loads.
+// "<brand> #0" (see buildShareText()'s BRAND_NAME) is correct regardless of
+// which one loads.
 function defaultPuzzleKeyFor(dateStr) {
   let date = new Date(dateStr + "T00:00:00Z");
   let startOfYear = Date.UTC(date.getUTCFullYear(), 0, 1);
@@ -406,13 +489,13 @@ async function getThePuzzle() {
   showPuzzleSkeleton();
   try {
     try {
-      puzzleSolution = await xhrGetJson(`${SITE_URL}puzzles/${datePicker.value}.json`);
+      puzzleSolution = await cachedXhrGetJson(`${SITE_URL}puzzles/${datePicker.value}.json`);
     } catch (e) {
       // No puzzle published for that date (yet, or ever, e.g. way in the
       // past before the site existed) — fall back to one of the 8
       // hand-authored default puzzles rather than showing an error, chosen
       // deterministically by defaultPuzzleKeyFor() above.
-      puzzleSolution = await xhrGetJson(`${SITE_URL}${defaultPuzzleKeyFor(datePicker.value)}`);
+      puzzleSolution = await cachedXhrGetJson(`${SITE_URL}${defaultPuzzleKeyFor(datePicker.value)}`);
     }
 
     gameControls.style.display = "flex";
@@ -977,7 +1060,7 @@ function moveFocus(key) {
 // of DOM.
 function buildShareText() {
   let squares = attempts.map((attempt) => attempt.map((c) => DIFFICULTY_EMOJI[c]).join("")).join("\n");
-  return `${SITE_URL}\nFourplay #${puzzleSolution.id}\n${datePicker.value}\n\n${squares}`;
+  return `${SITE_URL}\n${BRAND_NAME} #${puzzleSolution.id}\n${datePicker.value}\n\n${squares}`;
 }
 
 // sms: with no recipient pre-fills just the body — the exact separator
@@ -1006,7 +1089,7 @@ function toTitleCase(word) {
 function buildAnswersShareText() {
   let solved = puzzleSolution.groups.filter((group, i) => document.querySelector(`.answer.${DIFFICULTY_CLASSES[i]}`));
   let groupsText = solved.map((group) => `${group.category}\n${group.words.map(toTitleCase).join(", ")}`).join("\n\n");
-  return `${SITE_URL}\nFourplay answers #${puzzleSolution.id}\n${datePicker.value}\n\n${groupsText}`;
+  return `${SITE_URL}\n${BRAND_NAME} answers #${puzzleSolution.id}\n${datePicker.value}\n\n${groupsText}`;
 }
 
 function shareAnswersViaSms() {

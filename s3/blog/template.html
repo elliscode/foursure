@@ -16,31 +16,35 @@
   outside the real dollar-brace placeholders below -- an unescaped stray
   one anywhere else breaks rendering at generation time.
 -->
-<title>${display_date} Puzzle Breakdown &mdash; Fourplay</title>
+<title>${display_date} Puzzle Breakdown &mdash; Foursure</title>
 <link rel="icon" type="image/png" href="../assets/icons/kaios_112.png" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="description" content="Four groups, four words each -- see how today's Fourplay puzzle connects." />
+<meta name="description" content="Four groups, four words each -- see how today's Foursure puzzle connects." />
 <!-- Open Graph / Twitter Card -- see frontend/index.html for the game
      page's equivalent. og:image is the same absolute banner URL every
      post uses (og-banner.png doesn't vary per-post, so it's hardcoded
-     rather than templated); the post_url and date_iso placeholders below
-     are supplied by _render_post() in lambda_function.py alongside the
-     rest of the mapping. -->
+     rather than templated) -- crawlers never run JS, so a client-side
+     rewrite (like the <title>/masthead below still get) would never
+     actually be seen by one anyway. og:url/canonical below are computed
+     server-side by _render_post() in
+     backend/fourplay-blog-generator/lambda_function.py (the post_url
+     mapping value) rather than hardcoded here; date_iso is supplied the
+     same way. -->
 <meta property="og:type" content="article" />
-<meta property="og:site_name" content="Fourplay" />
+<meta property="og:site_name" content="Foursure" />
 <meta property="og:title" content="${display_date} Puzzle Breakdown" />
-<meta property="og:description" content="Four groups, four words each -- see how today's Fourplay puzzle connects." />
+<meta property="og:description" content="Four groups, four words each -- see how today's Foursure puzzle connects." />
 <meta property="og:url" content="${post_url}" />
-<meta property="og:image" content="https://fourplay.elliscode.com/img/og-banner.png" />
+<meta property="og:image" content="https://foursure.elliscode.com/img/og-banner.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="650" />
-<meta property="og:image:alt" content="Fourplay -- a daily word puzzle" />
+<meta property="og:image:alt" content="Foursure -- a daily word puzzle" />
 <meta property="article:published_time" content="${date_iso}T00:00:00Z" />
 <link rel="canonical" href="${post_url}" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="${display_date} Puzzle Breakdown" />
-<meta name="twitter:description" content="Four groups, four words each -- see how today's Fourplay puzzle connects." />
-<meta name="twitter:image" content="https://fourplay.elliscode.com/img/og-banner.png" />
+<meta name="twitter:description" content="Four groups, four words each -- see how today's Foursure puzzle connects." />
+<meta name="twitter:image" content="https://foursure.elliscode.com/img/og-banner.png" />
 <style>
   /* Self-hosted, same file frontend/index.html uses &mdash; see that file's
      stylesheet.css for why (one variable font backing every weight, no
@@ -309,7 +313,7 @@
 <body>
   <article>
     <a class="back-link" href="../index.html">&larr; Back to today's puzzle</a>
-    <p class="masthead">FOURPLAY</p>
+    <p class="masthead">FOURSURE</p>
     <h1>${display_date} Puzzle Breakdown</h1>
     <p class="post-date">Four groups, four words each &mdash; here's the connections between today's words.</p>
 
@@ -373,6 +377,29 @@
     <div id="ad-container"></div>
   </div>
 
+  <script>
+    // Gradual domain rebrand -- the new and legacy domains are both live at
+    // once. Same deriveBrand() as frontend/js/puzzle.js and
+    // frontend/admin.html -- this repo has no shared-module/build step, so
+    // it's duplicated here too, kept in sync manually (identical to the
+    // copy in blog/index-template.html/blog/how-we-score.html). Only
+    // rewrites the <title> and masthead now -- every og:*/twitter:*/
+    // meta-description value above is hardcoded to Foursure instead of
+    // derived here, since crawlers never run JS and would never see a
+    // client-side rewrite anyway. No backtick template literals anywhere
+    // here, same reason as the stats-chart script below -- see this file's
+    // very top comment. Foursure is the default/static text above -- this
+    // only switches to the legacy brand when actually served from that
+    // legacy host.
+    function deriveBrand(hostname) {
+      let firstLabel = (hostname.split(".")[0] || "").toLowerCase();
+      return firstLabel === "fourplay" ? "fourplay" : "foursure";
+    }
+    const BRAND_NAME = deriveBrand(window.location.hostname) === "foursure" ? "Foursure" : "Fourplay";
+
+    document.title = document.title.replace("Foursure", BRAND_NAME);
+    document.querySelector(".masthead").textContent = BRAND_NAME.toUpperCase();
+  </script>
   <script src="../js/kaiads.v5.min.js"></script>
   <script>
     // Copied from displayAd()/showAdPlaceholder() in frontend/js/puzzle.js
@@ -427,9 +454,9 @@
   </script>
   <script>
     // Bar chart of that day's completion-score histogram, fetched live from
-    // fourplay-api's /completions -- never baked into this static page by
-    // fourplay-blog-generator, so it stays accurate as more people play
-    // after this post is generated. Own self-contained constants, same
+    // the backend API's /completions -- never baked into this static page
+    // by the blog-generator Lambda, so it stays accurate as more people
+    // play after this post is generated. Own self-contained constants, same
     // "don't share anything with frontend/js/puzzle.js" posture the ad
     // script above already takes.
     //
@@ -441,7 +468,7 @@
     // inside a plain double-quoted string, which IS an intentional Python
     // substitution, resolved server-side before this script ever reaches a
     // browser.
-    var API_HOST = "https://api.fourplay.elliscode.com";
+    var API_HOST = "https://api.foursure.elliscode.com";
     // The only 12 scores a completed puzzle can ever actually produce (see
     // _score_attempts() in backend/lambda/fourplay/results.py). 4, 5, and 6
     // are all unreachable -- once 3 groups are correctly solved, only one

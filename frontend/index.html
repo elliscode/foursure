@@ -3,30 +3,34 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Fourplay</title>
+    <title>Foursure</title>
     <link rel="icon" type="image/png" href="assets/icons/kaios_112.png" />
-    <meta name="description" content="A daily word puzzle -- find the four hidden groups of four. A new Fourplay puzzle every day." />
+    <meta name="description" content="A daily word puzzle -- find the four hidden groups of four. A new Foursure puzzle every day." />
     <!-- Open Graph / Twitter Card -- see s3/blog/template.html for each
          post's per-date equivalent. og:image needs an absolute URL per the
          spec (unlike this file's other, relative asset paths). The banner
          itself (s3/img/og-banner.png) is deliberately NOT in frontend/img/
          -- it has no reason to ship inside the KaiOS app bundle, so it's
          checked in directly under s3/img/ instead; see s3/release.sh's own
-         comment for how that survives its otherwise-full img/ refresh. -->
+         comment for how that survives its otherwise-full img/ refresh.
+         Hardcoded to the Foursure brand/domain, not the deriveBrand()-based
+         dynamic name used for <title>/<h1> below -- crawlers never run JS,
+         so a client-side rewrite here would never actually be seen by one;
+         see puzzle.js's own comment on this. -->
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Fourplay" />
-    <meta property="og:title" content="Fourplay -- Find the Four Groups of Four" />
-    <meta property="og:description" content="A daily word puzzle -- find the four hidden groups of four. A new Fourplay puzzle every day." />
-    <meta property="og:url" content="https://fourplay.elliscode.com/" />
-    <meta property="og:image" content="https://fourplay.elliscode.com/img/og-banner.png" />
+    <meta property="og:site_name" content="Foursure" />
+    <meta property="og:title" content="Foursure -- Find the Four Groups of Four" />
+    <meta property="og:description" content="A daily word puzzle -- find the four hidden groups of four. A new Foursure puzzle every day." />
+    <meta property="og:url" content="https://foursure.elliscode.com/" />
+    <meta property="og:image" content="https://foursure.elliscode.com/img/og-banner.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="650" />
-    <meta property="og:image:alt" content="Fourplay -- a daily word puzzle" />
+    <meta property="og:image:alt" content="Foursure -- a daily word puzzle" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Fourplay -- Find the Four Groups of Four" />
-    <meta name="twitter:description" content="A daily word puzzle -- find the four hidden groups of four. A new Fourplay puzzle every day." />
-    <meta name="twitter:image" content="https://fourplay.elliscode.com/img/og-banner.png" />
-    <link rel="stylesheet" href="css/stylesheet.css?v=3.0.15" />
+    <meta name="twitter:title" content="Foursure -- Find the Four Groups of Four" />
+    <meta name="twitter:description" content="A daily word puzzle -- find the four hidden groups of four. A new Foursure puzzle every day." />
+    <meta name="twitter:image" content="https://foursure.elliscode.com/img/og-banner.png" />
+    <link rel="stylesheet" href="css/stylesheet.css?v=3.0.16" />
   </head>
   <body>
     <div id="results" class="panel">
@@ -47,7 +51,7 @@
 
     <div class="panel" id="content">
       <div id="header">
-        <h1>Fourplay</h1>
+        <h1>Foursure</h1>
         <div id="date-picker-row">
           <div class="input-wrap" id="wrap-date-picker" nav-selectable="true">
             <input onchange="setDate(event)" id="date-picker" type="date" />
@@ -118,7 +122,7 @@
           <h2>Settings</h2>
           <!-- Hard-coded — bump alongside manifest.webmanifest's
                b2g_features.version when releasing. -->
-          <p>Version <span id="app-version">3.0.15</span></p>
+          <p>Version <span id="app-version">3.0.16</span></p>
           <button type="button" nav-selectable="true" id="settings-clear-data">Clear All Data</button>
           <button type="button" nav-selectable="true" id="settings-close">Close</button>
         </div>
@@ -131,6 +135,6 @@
     </div>
 
     <script src="js/kaiads.v5.min.js"></script>
-    <script src="js/puzzle.js?v=3.0.15"></script>
+    <script src="js/puzzle.js?v=3.0.16"></script>
   </body>
 </html>

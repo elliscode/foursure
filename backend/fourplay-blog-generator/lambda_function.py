@@ -19,7 +19,7 @@ MODEL_NAME = "gemini-3.7-flash"
 # never be able to crash the Lambda over a bad env var value.
 BACKFILL_ORDER = os.environ.get("BACKFILL_ORDER", "newest")
 
-SITE_URL = "https://fourplay.elliscode.com/"
+SITE_URL = "https://foursure.elliscode.com/"
 
 PUZZLE_KEY_PREFIX = "puzzles/"
 DATED_PUZZLE_KEY_PATTERN = re.compile(r"^puzzles/\d{4}-\d{2}-\d{2}\.json$")

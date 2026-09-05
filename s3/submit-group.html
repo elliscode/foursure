@@ -84,6 +84,10 @@
   button:hover {
     background-color: #52524a;
   }
+  button:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
   #submit-group-message {
     font-size: 0.85rem;
     opacity: 0.85;
@@ -117,13 +121,25 @@
   </div>
 
 <script>
-const API_HOST = "https://api.fourplay.elliscode.com";
+const API_HOST = "https://api.foursure.elliscode.com";
 
 const submitGroupForm = document.getElementById("submit-group-form");
 const submitGroupMessage = document.getElementById("submit-group-message");
+const submitGroupButton = submitGroupForm.querySelector("button[type=submit]");
+
+// Guards against duplicate submissions from a double-tap/double-click, or
+// from mashing the button again while a slow connection is still waiting on
+// the first response -- the button's own disabled state is the main defense,
+// but isSubmitting is checked too in case a second submit event still slips
+// through (e.g. hitting Enter in a text field while disabled has yet to take
+// visual effect).
+let isSubmitting = false;
 
 async function submitGroupCallback(event) {
   event.preventDefault();
+  if (isSubmitting) {
+    return;
+  }
   let words = [1, 2, 3, 4].map((n) => (document.getElementById(`submit-word-${n}`).value || "").trim());
   let category = (document.getElementById("submit-category").value || "").trim();
 
@@ -132,6 +148,8 @@ async function submitGroupCallback(event) {
     return;
   }
 
+  isSubmitting = true;
+  submitGroupButton.disabled = true;
   try {
     // No explicit Content-Type header — "application/json" isn't a
     // CORS-safelisted value, so setting it forces a preflight OPTIONS
@@ -154,6 +172,9 @@ async function submitGroupCallback(event) {
     }
   } catch (e) {
     submitGroupMessage.innerText = "Something went wrong, please try again.";
+  } finally {
+    isSubmitting = false;
+    submitGroupButton.disabled = false;
   }
 }
 submitGroupForm.addEventListener("submit", submitGroupCallback);

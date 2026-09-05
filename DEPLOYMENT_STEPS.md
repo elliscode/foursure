@@ -1,6 +1,6 @@
-# Fourplay — Deployment Steps
+# Foursure — Deployment Steps
 
-Manual runbook for deploying Fourplay to AWS. Nothing here is scripted or automated — every AWS resource is created by hand in the console (or via the AWS CLI, your choice), matching how `kaios-calorie-counter` is set up. `backend/README.md` has the authoritative env-var/route reference; this file is the step-by-step sequence to actually stand the whole thing up and keep it running.
+Manual runbook for deploying Foursure to AWS. Nothing here is scripted or automated — every AWS resource is created by hand in the console (or via the AWS CLI, your choice), matching how `kaios-calorie-counter` is set up. `backend/README.md` has the authoritative env-var/route reference; this file is the step-by-step sequence to actually stand the whole thing up and keep it running.
 
 Split into three parts:
 - **Part 1** — one-time AWS infrastructure setup (only do this once, ever, per environment)
@@ -13,20 +13,20 @@ Split into three parts:
 
 ### 1. DynamoDB table
 
-- Table name: `fourplay` (or whatever you want — just make sure it matches `DYNAMODB_TABLE_NAME` in step 5)
+- Table name: `foursure` (or whatever you want — just make sure it matches `DYNAMODB_TABLE_NAME` in step 5)
 - Partition key: `key1` (String)
 - Sort key: `key2` (String)
 - Enable **TTL**, attribute name `expiration` (used by `otp`/`token` records — group records never expire, so this is safe to turn on unconditionally)
 
 ### 2. S3 bucket for the frontend
 
-- Create a bucket (e.g. `fourplay-elliscode-com`) — this is what `s3/release.sh`'s `BUCKET` variable and the Lambda's `PUZZLE_BUCKET_NAME` env var both point at, so keep the name consistent across both.
+- Create a bucket (e.g. `foursure-elliscode-com`) — this is what `s3/release.sh`'s `BUCKET` variable and the Lambda's `PUZZLE_BUCKET_NAME` env var both point at, so keep the name consistent across both.
 - Keep the bucket **private** (block all public access) — you'll front it with CloudFront next, not serve directly from the bucket.
-- **CORS policy**: Fourplay ships as two things — the website at `https://fourplay.elliscode.com`, and a packaged KaiOS app that (per KaiOS's app-origin convention) serves its own code from `http://fourplay.localhost`. Both fetch puzzle data (`puzzles/*.json`) directly from this bucket via absolute URLs (see `frontend/js/puzzle.js`'s `SITE_URL`), so both origins need `GET` allowed in the bucket's CORS configuration:
+- **CORS policy**: Foursure ships as two things — the website at `https://foursure.elliscode.com` (also reachable at the legacy `https://fourplay.elliscode.com` during the gradual rebrand), and a packaged KaiOS app that (per KaiOS's app-origin convention) serves its own code from `http://fourplay.localhost`. All of these fetch puzzle data (`puzzles/*.json`) directly from this bucket via absolute URLs (see `frontend/js/puzzle.js`'s `SITE_URL`), so each origin needs `GET` allowed in the bucket's CORS configuration:
   ```json
   [
     {
-      "AllowedOrigins": ["https://fourplay.elliscode.com", "http://fourplay.localhost"],
+      "AllowedOrigins": ["https://foursure.elliscode.com", "https://fourplay.elliscode.com", "http://fourplay.localhost"],
       "AllowedMethods": ["GET"],
       "AllowedHeaders": ["*"]
     }
@@ -35,12 +35,12 @@ Split into three parts:
 
 ### 3. CloudFront distribution (serves the site over HTTPS)
 
-- Request an ACM certificate for your domain (e.g. `fourplay.elliscode.com`) **in `us-east-1`** — CloudFront only accepts certs from that region regardless of where anything else lives. Validate it (DNS validation is easiest if your domain's already in Route53).
+- Request an ACM certificate for your domain (e.g. `foursure.elliscode.com`) **in `us-east-1`** — CloudFront only accepts certs from that region regardless of where anything else lives. Validate it (DNS validation is easiest if your domain's already in Route53).
 - Create a CloudFront distribution:
   - Origin: the S3 bucket from step 2, using **Origin Access Control (OAC)** (not a public bucket policy) — CloudFront will offer to update the bucket policy for you automatically when you set this up.
   - Default root object: `index.html`
-  - Attach the ACM cert from above, add `fourplay.elliscode.com` as an alternate domain name (CNAME).
-- In Route53 (or wherever your DNS lives), point `fourplay.elliscode.com` at the CloudFront distribution (an ALIAS record if using Route53, otherwise a CNAME).
+  - Attach the ACM cert from above, add `foursure.elliscode.com` as an alternate domain name (CNAME).
+- In Route53 (or wherever your DNS lives), point `foursure.elliscode.com` at the CloudFront distribution (an ALIAS record if using Route53, otherwise a CNAME).
 
 ### 4. Lambda function
 
@@ -58,18 +58,18 @@ Set these under Configuration → Environment variables:
 
 | Variable | Set it to |
 |---|---|
-| `DOMAIN_NAMES` | `https://fourplay.elliscode.com,http://fourplay.localhost` (comma-separated — the website and the packaged KaiOS app's origin, see step 2's CORS note; add more the same way if needed) |
+| `DOMAIN_NAMES` | `https://foursure.elliscode.com,https://fourplay.elliscode.com,http://fourplay.localhost` (comma-separated — both brand domains during the gradual rebrand, plus the packaged KaiOS app's origin, see step 2's CORS note; add more the same way if needed) |
 | `DYNAMODB_TABLE_NAME` | Whatever you named the table in step 1 |
 | `ADMIN_PHONES` | Comma-separated 10-digit phone numbers allowed to log into `admin.html` |
 | `SMS_SQS_QUEUE_URL` | The URL of the **existing** shared SQS queue the Twilio-forwarding Lambda already consumes (the same one `kaios-calorie-counter`/`kaios-t9-wizard` use) — you're not creating a new queue, just pointing at that one |
-| `ADMIN_COOKIE_DOMAIN` | `.fourplay.elliscode.com` (leading dot) |
+| `ADMIN_COOKIE_DOMAIN` | `.foursure.elliscode.com` (leading dot) |
 | `PUZZLE_BUCKET_NAME` | The bucket name from step 2 |
 
 ### 6. API Gateway
 
 - Create an API (REST or HTTP API, either works — `lambda_function.py` handles both event shapes) with an **ANY** method + proxy integration targeting the Lambda from step 4.
 - Deploy it to a stage and note the invoke URL.
-- Optional but recommended, to match the URLs already hardcoded in the frontend: set up a custom domain (`api.fourplay.elliscode.com`) for this API — needs its own ACM cert (same region as the API if it's a regional endpoint) and a Route53 record, same idea as step 3.
+- Optional but recommended, to match the URLs already hardcoded in the frontend: set up a custom domain (`api.foursure.elliscode.com`) for this API — needs its own ACM cert (same region as the API if it's a regional endpoint) and a Route53 record, same idea as step 3.
 
 ### 7. EventBridge scheduled rule
 
@@ -79,17 +79,20 @@ Set these under Configuration → Environment variables:
 
 ### 8. Point the code at your real URLs
 
-The repo ships with `fourplay.elliscode.com` / `api.fourplay.elliscode.com` as placeholders. Before your first real deploy, update these to match whatever you actually set up above (skip this if you used those exact domains):
+The repo ships with `foursure.elliscode.com` / `api.foursure.elliscode.com` as placeholders. Before your first real deploy, update these to match whatever you actually set up above (skip this if you used those exact domains):
 
 | File | Constant | 
 |---|---|
 | `frontend/admin.html` | `BASE_URL` |
 | `s3/submit-group.html` | `API_HOST` |
-| `frontend/js/puzzle.js` | `SITE_URL` |
+| `s3/blog/template.html` | `API_HOST` |
+| `backend/fourplay-blog-generator/lambda_function.py` | `SITE_URL` |
 | `frontend/index.html` | `#submit-group-anchor`'s `href` (hardcoded absolute — the packaged KaiOS app has no `submit-group.html` of its own to resolve a relative link against) |
 | `s3/release.sh` | `BUCKET` |
 | `backend/release.sh` | `--function-name=` |
 | `backend/fourplay-blog-generator/release.sh` | `FUNCTION_NAME` |
+
+`frontend/js/puzzle.js`'s `SITE_URL` is the one exception — it's no longer a hardcoded constant, it's derived from the actual visiting hostname via `deriveBrand()` (see that file's comment), so it doesn't need manual editing here; only `API_HOST` right next to it stays a plain hardcoded constant, since the API intentionally lives on one fixed host regardless of which brand's domain served the page.
 
 ### 9. Lambda function — blog generator
 
@@ -200,8 +203,8 @@ Zips `frontend/` (`index.html`, `css/`, `js/`, `manifest.webmanifest`, `assets/`
 
 ## Part 4 — Sanity check after deploying
 
-- `curl -X POST https://api.fourplay.elliscode.com/test` (with an `Origin` header matching `DOMAIN_NAMES`, or it'll 403) → should return `{"status": "up"}`
+- `curl -X POST https://api.foursure.elliscode.com/test` (with an `Origin` header matching `DOMAIN_NAMES`, or it'll 403) → should return `{"status": "up"}`
 - Open the site, confirm today's puzzle loads and is playable
 - Log into `admin.html`, confirm the OTP text arrives and login works
 - Submit a test group from the site, confirm it shows up as Pending in `admin.html`
-- If you've built a new KaiOS package, load it on-device (or in the simulator) and confirm the puzzle still loads — it's fetching `puzzles/*.json` from `https://fourplay.elliscode.com` even though the app itself runs from `http://fourplay.localhost`, so this also double-checks the CORS policy from step 2 is actually working
+- If you've built a new KaiOS package, load it on-device (or in the simulator) and confirm the puzzle still loads — it's fetching `puzzles/*.json` from `https://foursure.elliscode.com` even though the app itself runs from `http://fourplay.localhost`, so this also double-checks the CORS policy from step 2 is actually working

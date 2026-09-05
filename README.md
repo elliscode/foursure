@@ -1,8 +1,8 @@
-# Fourplay
+# Foursure
 
 A daily word puzzle: find the four groups of four connected words, NYT Connections-style. Groups are proposed by anyone, moderated by an admin, and grouped into puzzles automatically each day from the approved pool. No accounts, no framework, no build step — game progress lives entirely on-device in IndexedDB.
 
-Ships as both a website (`https://fourplay.elliscode.com`) and a packaged KaiOS feature-phone app — same `frontend/` source for both. See "KaiOS packaging" under Frontend below.
+Ships as both a website (`https://foursure.elliscode.com`, still reachable at the legacy `https://fourplay.elliscode.com` during the gradual rebrand) and a packaged KaiOS feature-phone app — same `frontend/` source for both. See "KaiOS packaging" under Frontend below.
 
 ## Repo layout
 
@@ -27,8 +27,10 @@ Ships as both a website (`https://fourplay.elliscode.com`) and a packaged KaiOS 
 Puzzle page (frontend/index.html) — served either as the website or as a
 packaged KaiOS app (running from http://fourplay.localhost)
   ├─ static puzzle data (S3, always fetched as an absolute
-  │  https://fourplay.elliscode.com/... URL regardless of which of the two
-  │  origins above served the page) — puzzles/YYYY-MM-DD.json, falling
+  │  https://{brand}.elliscode.com/... URL -- foursure.elliscode.com by
+  │  default, or fourplay.elliscode.com if that's the domain actually
+  │  serving the page -- regardless of which of the two origins above
+  │  served the page) — puzzles/YYYY-MM-DD.json, falling
   │  back to one of 8 rotating puzzles/default00N.json if that date has
   │  nothing published, plus puzzles/manifest.json (just a firstPuzzleDate
   │  floor for the calendar picker) — no auth
@@ -60,7 +62,7 @@ cd s3 && sh release.sh   # copy frontend/ in and sync the whole s3/ root up (exc
 
 ### KaiOS packaging
 
-`frontend/manifest.webmanifest` + `frontend/kaios-release.sh` produce the zip submitted to the KaiOS store — same pattern as `kaios-calorie-counter`. `admin.html` is deliberately excluded from the package (it's a web-only moderation tool); `puzzles/` was never part of `frontend/` in the first place — the packaged app fetches puzzle data live from `https://fourplay.elliscode.com` instead of carrying a local copy, since a submitted package can't be re-uploaded daily for tomorrow's puzzle (see `backend/README.md`).
+`frontend/manifest.webmanifest` + `frontend/kaios-release.sh` produce the zip submitted to the KaiOS store — same pattern as `kaios-calorie-counter`. `admin.html` is deliberately excluded from the package (it's a web-only moderation tool); `puzzles/` was never part of `frontend/` in the first place — the packaged app fetches puzzle data live from `https://foursure.elliscode.com` (or `https://fourplay.elliscode.com`, whichever brand that build is stamped for) instead of carrying a local copy, since a submitted package can't be re-uploaded daily for tomorrow's puzzle (see `backend/README.md`).
 
 ```
 cd frontend && sh kaios-release.sh
