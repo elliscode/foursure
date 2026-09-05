@@ -1,5 +1,5 @@
 TIMESTAMP=$(date +%s)
-zip -r fourplay-${TIMESTAMP}.zip . \
+zip -r foursure-${TIMESTAMP}.zip . \
   -x "*.zip" \
   -x "*.DS_Store" \
   -x "*.md" \

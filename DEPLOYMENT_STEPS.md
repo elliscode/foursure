@@ -22,11 +22,11 @@ Split into three parts:
 
 - Create a bucket (e.g. `foursure-elliscode-com`) — this is what `s3/release.sh`'s `BUCKET` variable and the Lambda's `PUZZLE_BUCKET_NAME` env var both point at, so keep the name consistent across both.
 - Keep the bucket **private** (block all public access) — you'll front it with CloudFront next, not serve directly from the bucket.
-- **CORS policy**: Foursure ships as two things — the website at `https://foursure.elliscode.com` (also reachable at the legacy `https://fourplay.elliscode.com` during the gradual rebrand), and a packaged KaiOS app that (per KaiOS's app-origin convention) serves its own code from `http://fourplay.localhost`. All of these fetch puzzle data (`puzzles/*.json`) directly from this bucket via absolute URLs (see `frontend/js/puzzle.js`'s `SITE_URL`), so each origin needs `GET` allowed in the bucket's CORS configuration:
+- **CORS policy**: Foursure ships as two things — the website at `https://foursure.elliscode.com` and a packaged KaiOS app that (per KaiOS's app-origin convention) serves its own code from `http://foursure.localhost`. All of these fetch puzzle data (`puzzles/*.json`) directly from this bucket via absolute URLs (see `frontend/js/puzzle.js`'s `SITE_URL`), so each origin needs `GET` allowed in the bucket's CORS configuration:
   ```json
   [
     {
-      "AllowedOrigins": ["https://foursure.elliscode.com", "https://fourplay.elliscode.com", "http://fourplay.localhost"],
+      "AllowedOrigins": ["https://foursure.elliscode.com", "http://foursure.localhost"],
       "AllowedMethods": ["GET"],
       "AllowedHeaders": ["*"]
     }
@@ -44,7 +44,7 @@ Split into three parts:
 
 ### 4. Lambda function
 
-- Create a function (e.g. `fourplay-api`), **Python 3.14** runtime, handler `lambda_function.lambda_handler`.
+- Create a function (e.g. `foursure-api`), **Python 3.14** runtime, handler `lambda_function.lambda_handler`.
 - Don't set the code yet — that comes from `backend/release.sh` in Part 3. For now just create the function shell so you have something to attach a role/env vars/triggers to.
 - Attach an IAM role granting:
   - `dynamodb:PutItem` / `GetItem` / `UpdateItem` / `Query` / `DeleteItem` on the table from step 1 — `DeleteItem` is for `/admin/delete-puzzle` only (a constructed-but-unpublished puzzle is disposable draft data); **groups themselves are still never deleted**
@@ -58,7 +58,7 @@ Set these under Configuration → Environment variables:
 
 | Variable | Set it to |
 |---|---|
-| `DOMAIN_NAMES` | `https://foursure.elliscode.com,https://fourplay.elliscode.com,http://fourplay.localhost` (comma-separated — both brand domains during the gradual rebrand, plus the packaged KaiOS app's origin, see step 2's CORS note; add more the same way if needed) |
+| `DOMAIN_NAMES` | `https://foursure.elliscode.com,http://foursure.localhost` (comma-separated — both brand domains during the gradual rebrand, plus the packaged KaiOS app's origin, see step 2's CORS note; add more the same way if needed) |
 | `DYNAMODB_TABLE_NAME` | Whatever you named the table in step 1 |
 | `ADMIN_PHONES` | Comma-separated 10-digit phone numbers allowed to log into `admin.html` |
 | `SMS_SQS_QUEUE_URL` | The URL of the **existing** shared SQS queue the Twilio-forwarding Lambda already consumes (the same one `kaios-calorie-counter`/`kaios-t9-wizard` use) — you're not creating a new queue, just pointing at that one |
@@ -197,7 +197,7 @@ cd frontend
 sh kaios-release.sh
 ```
 
-Zips `frontend/` (`index.html`, `css/`, `js/`, `manifest.webmanifest`, `assets/`) into `fourplay-<timestamp>.zip` for upload — excludes `admin.html` (a web-only surface with no reason to ship inside the player-facing app) and both release scripts. **Before this is meaningful**, `frontend/assets/icons/kaios_56.png` and `kaios_112.png` need to exist (referenced by `manifest.webmanifest`'s `icons` array) — they're design assets not included by default, so add them first.
+Zips `frontend/` (`index.html`, `css/`, `js/`, `manifest.webmanifest`, `assets/`) into `foursure-<timestamp>.zip` for upload — excludes `admin.html` (a web-only surface with no reason to ship inside the player-facing app) and both release scripts. **Before this is meaningful**, `frontend/assets/icons/kaios_56.png` and `kaios_112.png` need to exist (referenced by `manifest.webmanifest`'s `icons` array) — they're design assets not included by default, so add them first.
 
 ---
 
@@ -207,4 +207,4 @@ Zips `frontend/` (`index.html`, `css/`, `js/`, `manifest.webmanifest`, `assets/`
 - Open the site, confirm today's puzzle loads and is playable
 - Log into `admin.html`, confirm the OTP text arrives and login works
 - Submit a test group from the site, confirm it shows up as Pending in `admin.html`
-- If you've built a new KaiOS package, load it on-device (or in the simulator) and confirm the puzzle still loads — it's fetching `puzzles/*.json` from `https://foursure.elliscode.com` even though the app itself runs from `http://fourplay.localhost`, so this also double-checks the CORS policy from step 2 is actually working
+- If you've built a new KaiOS package, load it on-device (or in the simulator) and confirm the puzzle still loads — it's fetching `puzzles/*.json` from `https://foursure.elliscode.com` even though the app itself runs from `http://foursure.localhost`, so this also double-checks the CORS policy from step 2 is actually working
