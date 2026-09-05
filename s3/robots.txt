@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /admin.html
 
-Sitemap: https://fourplay.elliscode.com/sitemap.xml
+Sitemap: https://foursure.elliscode.com/sitemap.xml
