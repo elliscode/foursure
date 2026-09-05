@@ -4,9 +4,9 @@
 
 <img width="240" src="notes/frame_0168.png"/><img width="240" src="notes/frame_0401.png"/>
 
-A daily word puzzle: find the four groups of four connected words, NYT Connections-style. Groups are proposed by anyone, moderated by an admin, and grouped into puzzles automatically each day from the approved pool. No accounts, no framework, no build step — game progress lives entirely on-device in IndexedDB.
+A daily word puzzle: find the four groups of four connected words, NYT Connections-style. Groups are proposed by anyone, moderated by an admin, and assembled into puzzles by hand from the approved pool via the admin page; publishing the oldest queued puzzle each day is the only automatic step. No accounts, no framework, no build step — game progress lives entirely on-device in IndexedDB.
 
-Ships as both a website (`https://foursure.elliscode.com`, still reachable at the legacy `https://fourplay.elliscode.com` during the gradual rebrand) and a packaged KaiOS feature-phone app — same `frontend/` source for both. See "KaiOS packaging" under Frontend below.
+Ships as both a website (`https://foursure.elliscode.com`) and a packaged KaiOS feature-phone app — same `frontend/` source for both. See "KaiOS packaging" under Frontend below.
 
 ## Repo layout
 
@@ -23,7 +23,7 @@ Ships as both a website (`https://foursure.elliscode.com`, still reachable at th
 - **Submit a group** (`submit-group.html`, linked from the puzzle page) — anyone can propose 4 words + the category connecting them. Submissions are anonymous and go into the moderation queue.
 
 **For moderation:**
-- `admin.html` — phone-OTP-gated review tool. Approve, reject, or edit any submitted group (editing rejects the original and creates a new, already-approved replacement — the original submission is never deleted).
+- `admin.html` — phone-OTP-gated review tool. Approve, reject, or edit any submitted group (editing rejects the original and creates a new, already-approved replacement — the original submission is never deleted). Its "Build Puzzle" tab is also where puzzles actually get assembled: an admin manually picks 4 approved groups and assigns each a difficulty to build a puzzle, which then just waits in a queue to be published.
 
 ## Architecture
 
