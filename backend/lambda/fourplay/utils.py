@@ -299,7 +299,7 @@ def otp_route(event):
         otp_data = create_otp(phone, otp_value)
         message = {
             "phone": f"+1{phone}",
-            "message": f"{otp_data['otp']} is your Fourplay admin one-time passcode",
+            "message": f"{otp_data['otp']} is your Foursure admin one-time passcode",
         }
         sqs.send_message(QueueUrl=SMS_SQS_QUEUE_URL, MessageBody=json.dumps(message))
         return format_response(event=event, http_code=200, body="OTP sent")

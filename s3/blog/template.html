@@ -23,9 +23,7 @@
 <!-- Open Graph / Twitter Card -- see frontend/index.html for the game
      page's equivalent. og:image is the same absolute banner URL every
      post uses (og-banner.png doesn't vary per-post, so it's hardcoded
-     rather than templated) -- crawlers never run JS, so a client-side
-     rewrite (like the <title>/masthead below still get) would never
-     actually be seen by one anyway. og:url/canonical below are computed
+     rather than templated). og:url/canonical below are computed
      server-side by _render_post() in
      backend/fourplay-blog-generator/lambda_function.py (the post_url
      mapping value) rather than hardcoded here; date_iso is supplied the
@@ -377,29 +375,6 @@
     <div id="ad-container"></div>
   </div>
 
-  <script>
-    // Gradual domain rebrand -- the new and legacy domains are both live at
-    // once. Same deriveBrand() as frontend/js/puzzle.js and
-    // frontend/admin.html -- this repo has no shared-module/build step, so
-    // it's duplicated here too, kept in sync manually (identical to the
-    // copy in blog/index-template.html/blog/how-we-score.html). Only
-    // rewrites the <title> and masthead now -- every og:*/twitter:*/
-    // meta-description value above is hardcoded to Foursure instead of
-    // derived here, since crawlers never run JS and would never see a
-    // client-side rewrite anyway. No backtick template literals anywhere
-    // here, same reason as the stats-chart script below -- see this file's
-    // very top comment. Foursure is the default/static text above -- this
-    // only switches to the legacy brand when actually served from that
-    // legacy host.
-    function deriveBrand(hostname) {
-      let firstLabel = (hostname.split(".")[0] || "").toLowerCase();
-      return firstLabel === "fourplay" ? "fourplay" : "foursure";
-    }
-    const BRAND_NAME = deriveBrand(window.location.hostname) === "foursure" ? "Foursure" : "Fourplay";
-
-    document.title = document.title.replace("Foursure", BRAND_NAME);
-    document.querySelector(".masthead").textContent = BRAND_NAME.toUpperCase();
-  </script>
   <script src="../js/kaiads.v5.min.js"></script>
   <script>
     // Copied from displayAd()/showAdPlaceholder() in frontend/js/puzzle.js

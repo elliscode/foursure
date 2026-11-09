@@ -22,16 +22,18 @@ Split into three parts:
 
 - Create a bucket (e.g. `foursure-elliscode-com`) — this is what `s3/release.sh`'s `BUCKET` variable and the Lambda's `PUZZLE_BUCKET_NAME` env var both point at, so keep the name consistent across both.
 - Keep the bucket **private** (block all public access) — you'll front it with CloudFront next, not serve directly from the bucket.
-- **CORS policy**: Foursure ships as two things — the website at `https://foursure.elliscode.com` and a packaged KaiOS app that (per KaiOS's app-origin convention) serves its own code from `http://foursure.localhost`. All of these fetch puzzle data (`puzzles/*.json`) directly from this bucket via absolute URLs (see `frontend/js/puzzle.js`'s `SITE_URL`), so each origin needs `GET` allowed in the bucket's CORS configuration:
+- **CORS policy**: Foursure ships as two things — the website at `https://foursure.elliscode.com` and a packaged KaiOS app that (per KaiOS's app-origin convention) serves its own code from `http://fourplay.localhost` (the manifest's `id` is still `fourplay`, since changing it would change the KaiStore update URL). All of these fetch puzzle data (`puzzles/*.json`) directly from this bucket via absolute URLs (see `frontend/js/puzzle.js`'s `SITE_URL`), so each origin needs `GET` allowed in the bucket's CORS configuration:
   ```json
   [
     {
-      "AllowedOrigins": ["https://foursure.elliscode.com", "http://foursure.localhost"],
+      "AllowedOrigins": ["https://foursure.elliscode.com", "http://fourplay.localhost", "https://fourplay.elliscode.com"],
       "AllowedMethods": ["GET"],
       "AllowedHeaders": ["*"]
     }
   ]
   ```
+  Keep `https://fourplay.elliscode.com` and `http://fourplay.localhost` in `AllowedOrigins` indefinitely — KaiStore builds from before the rebrand (e.g. `af28cf6`, version 3.0.15) hard-code `https://fourplay.elliscode.com/` as their puzzle host and stay installed on phones that never update, and the legacy site's pages now fetch puzzles cross-origin from foursure.
+- Even with this set, step 3's **SimpleCORS** response headers policy is what actually guarantees the header reaches the app: CloudFront doesn't forward the viewer's `Origin` header to S3 unless an origin request policy tells it to, so S3 may never see a reason to add CORS headers at all.
 
 ### 3. CloudFront distribution (serves the site over HTTPS)
 
@@ -40,6 +42,12 @@ Split into three parts:
   - Origin: the S3 bucket from step 2, using **Origin Access Control (OAC)** (not a public bucket policy) — CloudFront will offer to update the bucket policy for you automatically when you set this up.
   - Default root object: `index.html`
   - Attach the ACM cert from above, add `foursure.elliscode.com` as an alternate domain name (CNAME).
+  - Default cache behavior:
+    - **Cache policy: `Managed-CachingDisabled`.** Traffic is a few hundred requests a day, so caching saves nothing worth having, and a cached copy can go bad at a single edge location without you ever seeing it (see "Troubleshooting" at the bottom). If you ever do want caching, use a custom policy with a short default TTL (e.g. min 0 / default 300 / max 3600, no headers/cookies/query strings) — never the default `CachingOptimized`, which can hold a copy for a day.
+    - **Response headers policy: `Managed-SimpleCORS`.** Adds `Access-Control-Allow-Origin: *` at the edge whenever the origin's response doesn't already carry one (it doesn't override S3's own CORS headers when S3 does send them), so the KaiOS app's cross-origin puzzle fetches never depend on what S3 returned or what got cached. `*` is fine — puzzle data is public.
+    - **No custom error responses** (Error pages tab). A missing `puzzles/{date}.json` has to come back as a real 4xx so the frontend falls back to a `default00N.json` puzzle; rewriting it to `index.html` with a 200 would break that.
+  - **Standard logging: on**, to an S3 bucket/prefix of your choice. Cheap at this traffic, and it's the only way to see after the fact what an edge location actually served (status code, edge location, hit/miss).
+- **Legacy `fourplay.elliscode.com` distribution:** the old pre-rebrand KaiStore build still fetches from `https://fourplay.elliscode.com/`, which is its own separate CloudFront distribution in front of the same bucket. Keep it alive indefinitely, and give it the exact same behavior settings as above — it was on `CachingOptimized` until Nov 2026, which is what caused the bug in "Troubleshooting".
 - In Route53 (or wherever your DNS lives), point `foursure.elliscode.com` at the CloudFront distribution (an ALIAS record if using Route53, otherwise a CNAME).
 
 ### 4. Lambda function
@@ -58,7 +66,7 @@ Set these under Configuration → Environment variables:
 
 | Variable | Set it to |
 |---|---|
-| `DOMAIN_NAMES` | `https://foursure.elliscode.com,http://foursure.localhost` (comma-separated — both brand domains during the gradual rebrand, plus the packaged KaiOS app's origin, see step 2's CORS note; add more the same way if needed) |
+| `DOMAIN_NAMES` | `https://fourplay.elliscode.com,http://fourplay.localhost,https://foursure.elliscode.com,http://foursure.localhost` (comma-separated). `http://fourplay.localhost` is the packaged KaiOS app's origin — every build, before and after the rebrand, posts results from it (see step 2's CORS note). `https://fourplay.elliscode.com` is the legacy site, kept indefinitely. `http://foursure.localhost` isn't used by any build today but is harmless. Add more the same way if needed |
 | `DYNAMODB_TABLE_NAME` | Whatever you named the table in step 1 |
 | `ADMIN_PHONES` | Comma-separated 10-digit phone numbers allowed to log into `admin.html` |
 | `SMS_SQS_QUEUE_URL` | The URL of the **existing** shared SQS queue the Twilio-forwarding Lambda already consumes (the same one `kaios-calorie-counter`/`kaios-t9-wizard` use) — you're not creating a new queue, just pointing at that one |
@@ -73,7 +81,7 @@ Set these under Configuration → Environment variables:
 
 ### 7. EventBridge scheduled rule
 
-- Create a scheduled rule with schedule expression `cron(0 23 * * ? *)` — 23:00 UTC nightly, so the file is ready an hour ahead of the 00:00 UTC date it's for.
+- Create a scheduled rule with schedule expression `cron(0 1 * * ? *)` — 01:00 UTC daily. `generate_puzzle()` publishes for "UTC now + 1 day", so each file goes up ~23 hours before its UTC date starts. That's early enough even for UTC+14: the frontend picks "today" from the device's local clock, so players east of UTC reach a date well before 00:00 UTC, and the file has to exist by then or they get a default puzzle.
 - Target: the **same** Lambda function from step 4 (a second trigger on it, not a new function). No input transformer needed — `lambda_handler` tells API Gateway and EventBridge events apart by shape automatically.
 - This only *publishes* whatever's oldest in the admin-built puzzle queue — it doesn't build anything itself. See Part 2 below for keeping that queue stocked.
 
@@ -86,13 +94,12 @@ The repo ships with `foursure.elliscode.com` / `api.foursure.elliscode.com` as p
 | `frontend/admin.html` | `BASE_URL` |
 | `s3/submit-group.html` | `API_HOST` |
 | `s3/blog/template.html` | `API_HOST` |
+| `frontend/js/puzzle.js` | `SITE_URL`, `API_HOST` |
 | `backend/fourplay-blog-generator/lambda_function.py` | `SITE_URL` |
 | `frontend/index.html` | `#submit-group-anchor`'s `href` (hardcoded absolute — the packaged KaiOS app has no `submit-group.html` of its own to resolve a relative link against) |
 | `s3/release.sh` | `BUCKET` |
 | `backend/release.sh` | `--function-name=` |
 | `backend/fourplay-blog-generator/release.sh` | `FUNCTION_NAME` |
-
-`frontend/js/puzzle.js`'s `SITE_URL` is the one exception — it's no longer a hardcoded constant, it's derived from the actual visiting hostname via `deriveBrand()` (see that file's comment), so it doesn't need manual editing here; only `API_HOST` right next to it stays a plain hardcoded constant, since the API intentionally lives on one fixed host regardless of which brand's domain served the page.
 
 ### 9. Lambda function — blog generator
 
@@ -118,7 +125,8 @@ A second, independent Lambda from step 4 — `fourplay-blog-generator` finds the
 ### 11. EventBridge scheduled rule — blog generator
 
 - Create a **separate** scheduled rule from step 7's (this one targets `fourplay-blog-generator`, not `fourplay-api` — two independent Lambdas, two independent rules).
-- Schedule expression `cron(15 23 * * ? *)` — 23:15 UTC nightly, 15 minutes after step 7's puzzle-publish rule fires, so that night's puzzle JSON reliably exists in the bucket before this Lambda looks for it.
+- Schedule expression `cron(15 1 * * ? *)` — 01:15 UTC daily, 15 minutes after step 7's puzzle-publish rule fires, so the new puzzle JSON reliably exists in the bucket before this Lambda looks for it.
+- Known side effect: the generator writes the post for the *newest* puzzle, which at 01:15 UTC is tomorrow's, so its answers show up on `blog/index.html` and in `sitemap.xml` ~23 hours before that UTC date starts. A future fix would be to have `_next_missing_date()` skip dates later than today (UTC).
 - No input transformer needed — an empty event is enough, this Lambda has no other trigger to distinguish it from.
 
 ---
@@ -207,4 +215,18 @@ Zips `frontend/` (`index.html`, `css/`, `js/`, `manifest.webmanifest`, `assets/`
 - Open the site, confirm today's puzzle loads and is playable
 - Log into `admin.html`, confirm the OTP text arrives and login works
 - Submit a test group from the site, confirm it shows up as Pending in `admin.html`
-- If you've built a new KaiOS package, load it on-device (or in the simulator) and confirm the puzzle still loads — it's fetching `puzzles/*.json` from `https://foursure.elliscode.com` even though the app itself runs from `http://foursure.localhost`, so this also double-checks the CORS policy from step 2 is actually working
+- If you've built a new KaiOS package, load it on-device (or in the simulator) and confirm the puzzle still loads — it's fetching `puzzles/*.json` from `https://foursure.elliscode.com` even though the app itself runs from `http://fourplay.localhost`, so this also double-checks the CORS policy from step 2 is actually working
+- If you've changed anything in CloudFront, check the KaiOS app on **cellular as well as wifi** — the two usually reach different CloudFront edge locations, and a problem cached at one edge only shows up on that network.
+
+---
+
+## Troubleshooting
+
+### KaiOS app shows a default puzzle for today, but the website shows the real one
+
+Seen Nov 2026 on the KaiStore build (`af28cf6`), on cellular only. The website, the phone's own browser, and the raw `puzzles/{date}.json` URL all worked; older dates worked in the app (served from the phone's cache).
+
+- **Root cause:** a bad cached copy of that day's file at one CloudFront edge location on the legacy `fourplay.elliscode.com` distribution, which was still on `Managed-CachingOptimized` (holds copies up to a day when the origin sends no `Cache-Control`, which nothing here does). Wifi and cellular reach different edges, so only cellular saw it. The exact defect in the copy was never confirmed; the most likely candidate is a cached 200 missing `Access-Control-Allow-Origin`, since `Origin` isn't in that cache key. It wasn't an early 404 — with no custom error responses, CloudFront only keeps a 4xx for ~10 seconds.
+- **Fix:** invalidate `/*` on the distribution, then switch it to `Managed-CachingDisabled` (step 3). Today's puzzle loaded immediately.
+- **Things that looked relevant but weren't:** the app's own "Clear All Data" button only deletes the IndexedDB game-progress database, not the phone's HTTP cache; the origin's "IPv4-only" setting is CloudFront-to-S3 only and has nothing to do with the phone's network.
+- **How to spot it:** in CloudFront → Reports & analytics → Popular objects, requests for `puzzles/default00N.json` on days that have a real puzzle are fallbacks — each one is a client whose request for the dated file failed.

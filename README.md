@@ -29,12 +29,10 @@ Ships as both a website (`https://foursure.elliscode.com`) and a packaged KaiOS 
 
 ```
 Puzzle page (frontend/index.html) — served either as the website or as a
-packaged KaiOS app (running from http://foursure.localhost)
+packaged KaiOS app (running from http://fourplay.localhost)
   ├─ static puzzle data (S3, always fetched as an absolute
-  │  https://{brand}.elliscode.com/... URL -- foursure.elliscode.com by
-  │  default, or foursure.elliscode.com if that's the domain actually
-  │  serving the page -- regardless of which of the two origins above
-  │  served the page) — puzzles/YYYY-MM-DD.json, falling
+  │  https://foursure.elliscode.com/... URL regardless of which of
+  │  the two origins above served the page) — puzzles/YYYY-MM-DD.json, falling
   │  back to one of 8 rotating puzzles/default00N.json if that date has
   │  nothing published, plus puzzles/manifest.json (just a firstPuzzleDate
   │  floor for the calendar picker) — no auth
@@ -66,7 +64,7 @@ cd s3 && sh release.sh   # copy frontend/ in and sync the whole s3/ root up (exc
 
 ### KaiOS packaging
 
-`frontend/manifest.webmanifest` + `frontend/kaios-release.sh` produce the zip submitted to the KaiOS store — same pattern as `kaios-calorie-counter`. `admin.html` is deliberately excluded from the package (it's a web-only moderation tool); `puzzles/` was never part of `frontend/` in the first place — the packaged app fetches puzzle data live from `https://foursure.elliscode.com` (or `https://foursure.elliscode.com`, whichever brand that build is stamped for) instead of carrying a local copy, since a submitted package can't be re-uploaded daily for tomorrow's puzzle (see `backend/README.md`).
+`frontend/manifest.webmanifest` + `frontend/kaios-release.sh` produce the zip submitted to the KaiOS store — same pattern as `kaios-calorie-counter`. `admin.html` is deliberately excluded from the package (it's a web-only moderation tool); `puzzles/` was never part of `frontend/` in the first place — the packaged app fetches puzzle data live from `https://foursure.elliscode.com` instead of carrying a local copy, since a submitted package can't be re-uploaded daily for tomorrow's puzzle (see `backend/README.md`).
 
 ```
 cd frontend && sh kaios-release.sh

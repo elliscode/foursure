@@ -15,9 +15,7 @@
 <link rel="icon" type="image/png" href="../assets/icons/kaios_112.png" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="description" content="How Foursure's score is calculated, and why some scores are impossible to get." />
-<!-- Hardcoded to the Foursure brand/domain -- crawlers never run JS, so a
-     client-side rewrite (like the <title>/masthead below still get) would
-     never actually be seen by one. -->
+<!-- Hardcoded to the Foursure brand/domain. -->
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="Foursure" />
 <meta property="og:title" content="How Scoring Works" />
@@ -232,7 +230,7 @@
 
     <div class="why-section">
       <h2>Nothing about you is stored</h2>
-      <p id="privacy-note">
+      <p>
         The only thing Foursure ever records is an anonymous count for each date-and-score pair &mdash; "3 people got a
         7 on August 29th," for example. There's no account system, no identifying information sent or saved, and
         nothing about an individual game is ever retrievable after the fact.
@@ -240,34 +238,5 @@
     </div>
   </article>
 
-  <script>
-    // Gradual domain rebrand -- the new and legacy domains are both live at
-    // once. Same deriveBrand() as frontend/js/puzzle.js and
-    // frontend/admin.html -- this repo has no shared-module/build step, so
-    // it's duplicated here too, kept in sync manually (identical to the
-    // copy in blog/template.html/blog/index-template.html). Only rewrites
-    // the <title>, masthead, and the one body paragraph mentioning the
-    // brand name now -- every og:*/twitter:*/meta-description value above
-    // is hardcoded to Foursure instead, since crawlers never run JS and
-    // would never see a client-side rewrite anyway. Foursure is the
-    // default/static text everywhere above -- this only switches to the
-    // legacy brand when actually served from that legacy host.
-    function deriveBrand(hostname) {
-      let firstLabel = (hostname.split(".")[0] || "").toLowerCase();
-      return firstLabel === "fourplay" ? "fourplay" : "foursure";
-    }
-    const BRAND_NAME = deriveBrand(window.location.hostname) === "foursure" ? "Foursure" : "Fourplay";
-
-    function replaceBrandInText(selector) {
-      let el = document.querySelector(selector);
-      if (el) {
-        el.textContent = el.textContent.replace("Foursure", BRAND_NAME);
-      }
-    }
-
-    document.title = document.title.replace("Foursure", BRAND_NAME);
-    document.querySelector(".masthead").textContent = BRAND_NAME.toUpperCase();
-    replaceBrandInText('#privacy-note');
-  </script>
 </body>
 </html>

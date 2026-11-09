@@ -38,7 +38,7 @@ client = genai.Client(api_key=GEMINI_API_KEY)
 
 GROUP_SYSTEM_INSTRUCTION = (
     "You are writing short explanatory blurbs for a daily connections-style word "
-    "puzzle called Fourplay. Each puzzle has four groups of four words; each group "
+    "puzzle called Foursure. Each puzzle has four groups of four words; each group "
     "shares a hidden category and is ranked by difficulty from 1 (easiest) to 4 "
     "(hardest -- often wordplay, homophones, or misdirection-based). "
     "You are being shown exactly one group in isolation: its category, its four "
@@ -61,7 +61,7 @@ GROUP_SYSTEM_INSTRUCTION = (
 
 WHY_SYSTEM_INSTRUCTION = (
     "You are writing the closing paragraph of a daily blog post that breaks down "
-    "a four-group Fourplay word puzzle (a connections-style game). You will be "
+    "a four-group Foursure word puzzle (a connections-style game). You will be "
     "given all four groups -- each with its category, its four words, and its "
     "difficulty rank (1 easiest to 4 hardest).\n\n"
     "Write a single paragraph, about 80 to 100 words, explaining why these four "

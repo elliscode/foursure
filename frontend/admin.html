@@ -168,14 +168,6 @@
   </div>
 
 <script>
-function deriveBrand(hostname) {
-  let firstLabel = (hostname.split(".")[0] || "").toLowerCase();
-  return firstLabel === "fourplay" ? "fourplay" : "foursure";
-}
-const BRAND_NAME = deriveBrand(window.location.hostname) === "foursure" ? "Foursure" : "Fourplay";
-document.title = `${BRAND_NAME} Admin`;
-document.getElementById("page-title").textContent = `${BRAND_NAME} — Group Submission Review`;
-
 const BASE_URL = 'https://api.foursure.elliscode.com/admin';
 const CSRF_STORAGE_KEY = 'fourplay-admin-csrf-token';
 

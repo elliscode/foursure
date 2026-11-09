@@ -23,41 +23,18 @@ const DIFFICULTY_EMOJI = {
 };
 
 // Domain convention matches admin.html's BASE_URL and submit-group.html's
-// API_HOST, except SITE_URL is brand-dependent (API_HOST stays pinned to a
-// single fixed host regardless of brand — see below, accepts requests from
-// either origin). This isn't just the
-// share link: it's the real host every puzzle-data fetch is hard-coded
-// against (see getThePuzzle()/fetchFirstPuzzleDate() below). Fourplay/
-// Foursure ship both as this website *and* as a packaged KaiOS app that
-// serves its own code from http://fourplay.localhost, which has no
-// puzzles/ directory of its own (a packaged app can't be re-uploaded daily
-// for tomorrow's puzzle) — so a relative path would 404 there, and
-// location.origin verbatim would resolve to the KaiOS package's own fake
-// host instead of a real one. deriveBrand() reads the page's actual first
-// hostname label instead, so both origins always fetch the same live data
-// from the correct real domain. Foursure is the default now (anything that
-// isn't explicitly "fourplay" resolves to foursure) -- the KaiOS
-// "fourplay.localhost" label is an explicit match, not a default, so the
-// packaged app keeps working correctly with no special-casing needed.
-// Kept in sync manually with the identical deriveBrand() in admin.html and
-// the blog templates — update all of them if this logic ever changes.
-function deriveBrand(hostname) {
-  let firstLabel = (hostname.split(".")[0] || "").toLowerCase();
-  return firstLabel === "fourplay" ? "fourplay" : "foursure";
-}
-const BRAND = deriveBrand(window.location.hostname);
-const SITE_URL = `https://${BRAND}.elliscode.com/`;
+// API_HOST. This isn't just the share link: it's the real host every
+// puzzle-data fetch is hard-coded against (see getThePuzzle()/
+// fetchFirstPuzzleDate() below). Foursure ships both as this website *and*
+// as a packaged KaiOS app that serves its own code from
+// http://fourplay.localhost (the manifest's id), which has no puzzles/
+// directory of its own (a packaged app can't be re-uploaded daily for
+// tomorrow's puzzle) — so a relative path would 404 there, and
+// location.origin would resolve to the KaiOS package's own fake host
+// instead of a real one. Hence an absolute URL, whatever host served the
+// page.
+const SITE_URL = "https://foursure.elliscode.com/";
 const API_HOST = "https://api.foursure.elliscode.com";
-// Same brand token driving SITE_URL above, just reused for display —
-// index.html's <title>/<h1> both start out as the static "Foursure" text,
-// overwritten here immediately since this script tag is the last thing in
-// <body> and runs after the real <h1> already exists in the DOM. Same
-// pattern as admin.html's BRAND_NAME (that file re-derives its own copy of
-// deriveBrand() since it's a separate <script>, not loaded through this
-// file — see that file's own comment).
-const BRAND_NAME = BRAND === "foursure" ? "Foursure" : "Fourplay";
-document.title = BRAND_NAME;
-document.querySelector("h1").textContent = BRAND_NAME;
 // Matches stylesheet.css's `@media (max-width: 240px)` breakpoint — the
 // KaiOS/D-pad-driven layout. Above this width, nobody's navigating with
 // arrow keys (mouse on desktop, no arrow-key access at all on a
@@ -299,7 +276,7 @@ async function clearGameData() {
     request.onerror = () => reject(request.error);
     request.onblocked = () => resolve();
   });
-  console.log("Fourplay: local game data cleared, reloading...");
+  console.log("Foursure: local game data cleared, reloading...");
   location.reload();
 }
 window.clearGameData = clearGameData;
@@ -442,7 +419,7 @@ function seedGuesses() {
 // one of the 8 per calendar date, so the same missing date always shows the
 // same fallback (not random) while different dates spread across all 8
 // rather than always landing on the same one. All 8 share "id": 0, so
-// "<brand> #0" (see buildShareText()'s BRAND_NAME) is correct regardless of
+// "Foursure #0" (see buildShareText()) is correct regardless of
 // which one loads.
 function defaultPuzzleKeyFor(dateStr) {
   let date = new Date(dateStr + "T00:00:00Z");
@@ -1060,7 +1037,7 @@ function moveFocus(key) {
 // of DOM.
 function buildShareText() {
   let squares = attempts.map((attempt) => attempt.map((c) => DIFFICULTY_EMOJI[c]).join("")).join("\n");
-  return `${SITE_URL}\n${BRAND_NAME} #${puzzleSolution.id}\n${datePicker.value}\n\n${squares}`;
+  return `${SITE_URL}\nFoursure #${puzzleSolution.id}\n${datePicker.value}\n\n${squares}`;
 }
 
 // sms: with no recipient pre-fills just the body — the exact separator
@@ -1089,7 +1066,7 @@ function toTitleCase(word) {
 function buildAnswersShareText() {
   let solved = puzzleSolution.groups.filter((group, i) => document.querySelector(`.answer.${DIFFICULTY_CLASSES[i]}`));
   let groupsText = solved.map((group) => `${group.category}\n${group.words.map(toTitleCase).join(", ")}`).join("\n\n");
-  return `${SITE_URL}\n${BRAND_NAME} answers #${puzzleSolution.id}\n${datePicker.value}\n\n${groupsText}`;
+  return `${SITE_URL}\nFoursure answers #${puzzleSolution.id}\n${datePicker.value}\n\n${groupsText}`;
 }
 
 function shareAnswersViaSms() {

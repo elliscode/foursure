@@ -13,10 +13,7 @@
          -- it has no reason to ship inside the KaiOS app bundle, so it's
          checked in directly under s3/img/ instead; see s3/release.sh's own
          comment for how that survives its otherwise-full img/ refresh.
-         Hardcoded to the Foursure brand/domain, not the deriveBrand()-based
-         dynamic name used for <title>/<h1> below -- crawlers never run JS,
-         so a client-side rewrite here would never actually be seen by one;
-         see puzzle.js's own comment on this. -->
+         Hardcoded to the Foursure brand/domain. -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Foursure" />
     <meta property="og:title" content="Foursure -- Find the Four Groups of Four" />
