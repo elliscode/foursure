@@ -21,3 +21,7 @@ s3/assets/
 .DS_Store
 
 *.zip
+
+# scripts/patch_existing_posts.py working copy of the live blog posts,
+# downloaded from S3 (the real source of truth) -- not committed
+scripts/blog-posts/

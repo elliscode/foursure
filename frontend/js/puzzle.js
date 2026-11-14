@@ -593,9 +593,10 @@ function select(event) {
   toggleChosen(event.target);
 }
 
-// Anonymous, analytics-only ping — the backend computes a score/success
-// verdict from this and only logs it (see backend/lambda/fourplay/
-// results.py), nothing is stored, nothing comes back. Best-effort: a
+// Anonymous, analytics-only ping — the backend checks the guessed words
+// against the canonical puzzle for this date, then computes a score and
+// bumps a per-date-and-score counter (see backend/lambda/fourplay/
+// results.py), nothing comes back. Best-effort: a
 // failure here must never surface to the player or affect the game in any
 // way, so this is deliberately fire-and-forget with no user-facing error
 // path. No explicit Content-Type header, same CORS-preflight reason as
@@ -610,6 +611,10 @@ function submitResult() {
       // back many different dates, so its own "date" field (blank on most
       // of them) isn't what analytics should bucket by.
       date: datePicker.value,
+      // The actual words of each guess, in order — what the backend
+      // verifies against the canonical puzzle. attempts below is the older
+      // difficulty-only shape, kept for readable logs.
+      guesses: attemptsSet,
       attempts: attempts.map((attempt) => attempt.map((c) => DIFFICULTY_CLASSES.indexOf(c) + 1)),
     }),
   }).catch(() => {});

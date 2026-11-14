@@ -42,8 +42,9 @@ def route(event):
     if path_equals(event=event, method="POST", path="/submit-group"):
         return submit_group_route(event)
 
-    # Anonymous, analytics-only — see fourplay/results.py. Nothing is
-    # stored; the point is purely the log line it prints.
+    # Anonymous, analytics-only — see fourplay/results.py. Only ever
+    # increments a per-date-and-score counter (after checking the guessed
+    # words against the canonical puzzle, for clients that send them).
     if path_equals(event=event, method="POST", path="/submit-result"):
         return submit_result_route(event)
 

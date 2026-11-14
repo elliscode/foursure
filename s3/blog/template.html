@@ -306,6 +306,49 @@
       font-size: 1.6rem;
     }
   }
+  /* KaiOS-sized screens. Every text size above is in rem, so shrinking
+     the root font size scales the whole page down together -- the same
+     effect as zooming out -- and the padding/margins collapse to almost
+     nothing so the content gets nearly the full 240px. #stats-chart's
+     reserved height is recomputed for the wider content box (100vw minus
+     2px body + 2px article padding on each side), at the same 3:8 ratio
+     as the chart's viewBox. */
+  @media (max-width: 240px) {
+    html {
+      font-size: 12px;
+    }
+    body {
+      padding: 2px;
+    }
+    article {
+      padding: 2px;
+      border-radius: 4px;
+    }
+    .masthead {
+      margin: 8px 0 2px;
+    }
+    .post-date {
+      margin: 0 0 12px;
+    }
+    #stats-chart-wrap {
+      margin: 0 0 12px;
+    }
+    #stats-chart {
+      height: calc(((100vw - 8px) * 3) / 8);
+    }
+    .group-section {
+      padding: 8px;
+      margin-bottom: 8px;
+      border-radius: 6px;
+    }
+    .why-section {
+      margin-top: 12px;
+      padding-top: 8px;
+    }
+    .ad-wrap {
+      margin-top: 12px;
+    }
+  }
 </style>
 </head>
 <body>
