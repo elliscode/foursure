@@ -172,6 +172,46 @@
     padding-top: 24px;
     border-top: 1px solid #e5e5e0;
   }
+  /* KaiOS-sized screens -- same approach as blog/template.html's block of
+     the same name. Every text size above is in rem, so shrinking the root
+     font size scales the whole page down together, like zooming out, and
+     the padding/margins collapse to almost nothing so the content gets
+     nearly the full 240px. */
+  @media (max-width: 240px) {
+    html {
+      font-size: 12px;
+    }
+    body {
+      padding: 2px;
+    }
+    article {
+      padding: 2px;
+      border-radius: 4px;
+    }
+    .masthead {
+      margin: 8px 0 2px;
+    }
+    .post-date {
+      margin: 0 0 12px;
+    }
+    h2 {
+      margin: 16px 0 6px;
+    }
+    .rule-list li {
+      grid-template-columns: 56px 1fr;
+      gap: 8px;
+      padding: 8px;
+    }
+    .score-pill {
+      min-width: 26px;
+      height: 26px;
+      padding: 0 6px;
+    }
+    .why-section {
+      margin-top: 12px;
+      padding-top: 8px;
+    }
+  }
 </style>
 </head>
 <body>
