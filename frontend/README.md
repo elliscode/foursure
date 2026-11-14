@@ -12,4 +12,4 @@ No known issues at this time
 4. Figure out all four categories to win.
 5. Once your game is complete, select the "SHARE" option to send an SMS with your score
 6. Once your game is complete, a "See how you stacked up!" link appears below the game board. Navigate down to it and press the center key to open the blog post for that day's puzzle. The blog post explains each group and shows a chart of how all players scored.
-7. Return to the app. Pick a different date to play a different puzzle. Each day new puzzles will be uploaded, once the app has been released for public consumption.
+7. Return to the app. Pick a different date to play a different puzzle. Each day new puzzles will be uploaded.
